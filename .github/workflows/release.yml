@@ -1,0 +1,49 @@
+# Publish a release on a version tag.
+#
+# Delivery is anonymous for consumers (no token to install):
+#   1. npm  — `npm publish` via **Trusted Publishing (OIDC)**, so hosts can
+#             `npx @hiq-ai/hiq-cortex-cli` or depend on the package. NO npm token
+#             and NO repo secret: GitHub Actions proves its identity to npm over
+#             OIDC (`id-token: write`), and npm generates provenance automatically.
+#             One-time setup: the package must already exist (do a single manual
+#             first publish), then add this repo + workflow as a Trusted Publisher
+#             in the package's npmjs.com settings.
+#   2. GitHub Release — carries the packed tarball.
+#
+# This package has no out-of-band data asset (it forwards to the Cortex API
+# at runtime), so a release is just {code (npm + tarball)}.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # create the GitHub Release
+  id-token: write   # npm Trusted Publishing (OIDC) + provenance
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'   # ≥ 22.14, required by trusted publishing
+          registry-url: 'https://registry.npmjs.org'
+      # Trusted publishing needs npm ≥ 11.5.1; Node 22 still bundles npm 10.x.
+      - run: npm install -g npm@latest
+      - run: npm ci
+      - run: npm run build
+      - name: Publish to npm (Trusted Publishing — no token)
+        run: npm publish --access public --provenance
+      - name: Pack tarball for the GitHub Release
+        id: pack
+        run: echo "tgz=$(npm pack --silent)" >> "$GITHUB_OUTPUT"
+      - name: Create / update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "${{ steps.pack.outputs.tgz }}" \
+            --title "$GITHUB_REF_NAME" --generate-notes --verify-tag \
+          || gh release upload "$GITHUB_REF_NAME" "${{ steps.pack.outputs.tgz }}" --clobber
