@@ -1,0 +1,17 @@
+# Node / TS build artefacts
+node_modules/
+dist/
+*.tsbuildinfo
+*.tgz
+
+# Env / secrets — the SSO token lives in env vars, never on disk
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+
+# Editor metadata
+.vscode/
+.idea/
