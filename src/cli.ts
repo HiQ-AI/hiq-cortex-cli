@@ -18,6 +18,7 @@ import { config, hasCredential } from "./config.js";
 import { registerToolCommands, toolAlias, type CatalogTool } from "./dynamicCommands.js";
 import { credentialsPath, runLogin, runLogout } from "./login.js";
 import { callTool, listTools } from "./mcpClient.js";
+import { RENDERERS } from "./format.js";
 import { formatSearch, runSearch } from "./search.js";
 import { CortexClientError, EXIT, exitCodeFor } from "./types.js";
 import { VERSION } from "./version.js";
@@ -25,7 +26,13 @@ import { VERSION } from "./version.js";
 const STATIC = new Set(["search", "list", "describe", "call", "doctor", "login", "logout", "version"]);
 
 function emit(json: boolean, tool: string, text: string): void {
-  process.stdout.write(json ? JSON.stringify({ ok: true, tool, text }) + "\n" : text + "\n");
+  if (json) {
+    process.stdout.write(JSON.stringify({ ok: true, tool, text }) + "\n");
+    return;
+  }
+  // Render the payloads a person actually reads; print the rest as-is.
+  const rendered = RENDERERS[tool]?.(text);
+  process.stdout.write((rendered ?? text) + "\n");
 }
 
 function fail(json: boolean, err: unknown): never {

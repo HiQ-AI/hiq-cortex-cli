@@ -1,4 +1,4 @@
-# @hiq-ai/hiq-cortex
+# @hiq-ai/hiq-cortex-cli
 
 Command-line client for **HiQ Cortex** — look up real LCA emission factors from
 18 life-cycle inventory databases (ecoinvent, BAFU, USLCI, ELCD, EF, worldsteel,
@@ -16,8 +16,8 @@ run server-side; this package posts your query and renders what comes back.
 ## Quick start
 
 ```bash
-npx @hiq-ai/hiq-cortex login          # QR sign-in, no registration needed
-npx @hiq-ai/hiq-cortex search "304 不锈钢"
+npx @hiq-ai/hiq-cortex-cli login          # QR sign-in, no registration needed
+npx @hiq-ai/hiq-cortex-cli search "304 不锈钢"
 ```
 
 ```

@@ -1,7 +1,7 @@
 {
-  "name": "@hiq-ai/hiq-cortex",
+  "name": "@hiq-ai/hiq-cortex-cli",
   "version": "0.1.0",
-  "description": "Command-line client for HiQ Cortex — look up real LCA emission factors from 18 life-cycle inventory databases and 24,000+ published EPDs.",
+  "description": "CLI for HiQ Cortex — look up real LCA emission factors from 18 life-cycle inventory databases and 24,000+ published EPDs.",
   "type": "module",
   "bin": {
     "hiq-cortex": "./dist/cli.js"
@@ -30,9 +30,9 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/HiQ-AI/hiq-cortex.git"
+    "url": "git+https://github.com/HiQ-AI/hiq-cortex-cli.git"
   },
-  "homepage": "https://github.com/HiQ-AI/hiq-cortex",
+  "homepage": "https://github.com/HiQ-AI/hiq-cortex-cli",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "qrcode-terminal": "^0.12.0",
