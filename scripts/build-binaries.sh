@@ -4,12 +4,15 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-VERSION=$(bun -p "require('./package.json').version")
 OUT=dist-bin
 rm -rf "$OUT" && mkdir -p "$OUT"
 
 bun scripts/stamp-version.mjs
 
+# Archive names carry no version: that lets the installers fetch
+# `releases/latest/download/<name>` straight off GitHub — no version lookup, so
+# no anonymous-API rate limit to hit on someone's first install.
+#
 # name=bun-target. `-baseline` targets omit AVX2 so the binaries also run on
 # pre-2013 x64 hardware and inside VMs that mask CPU features.
 TARGETS=(
@@ -41,13 +44,17 @@ for entry in "${TARGETS[@]}"; do
   staged="$OUT/hiq-cortex$ext"
   mv "$bin" "$staged"
   if [[ "$name" == windows-* ]]; then
-    (cd "$OUT" && zip -q "hiq-cortex-$VERSION-$name.zip" "hiq-cortex$ext")
+    (cd "$OUT" && zip -q "hiq-cortex-$name.zip" "hiq-cortex$ext")
   else
     chmod +x "$staged"
-    (cd "$OUT" && tar czf "hiq-cortex-$VERSION-$name.tar.gz" hiq-cortex)
+    (cd "$OUT" && tar czf "hiq-cortex-$name.tar.gz" hiq-cortex)
   fi
   rm -f "$staged"
 done
 
-(cd "$OUT" && shasum -a 256 ./* > "hiq-cortex-$VERSION-checksums.txt")
+# Bun ≥1.3 writes a .map next to the executable whatever --sourcemap says.
+# Drop it before hashing, or it ends up on the Release as a stray 1.6MB asset.
+find "$OUT" -type f ! -name '*.tar.gz' ! -name '*.zip' -delete
+
+(cd "$OUT" && shasum -a 256 ./* > checksums.txt)
 echo && ls -lh "$OUT"

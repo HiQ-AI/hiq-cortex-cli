@@ -71,7 +71,8 @@ jobs:
           || gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
 
   # The installers are the path most users take, so they get exercised against
-  # the real Release rather than trusted to review.
+  # the real Release — with no version pinned, so this covers the default
+  # `releases/latest/download` resolution too.
   verify-install:
     needs: release
     strategy:
@@ -84,12 +85,11 @@ jobs:
       - name: install.sh
         if: runner.os != 'Windows'
         run: |
-          HIQ_CORTEX_VERSION="${GITHUB_REF_NAME#v}" sh scripts/install.sh
+          sh scripts/install.sh
           "$HOME/.local/bin/hiq-cortex" version
       - name: install.ps1
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $env:HIQ_CORTEX_VERSION = "${env:GITHUB_REF_NAME}" -replace '^v',''
           ./scripts/install.ps1
           & "$env:LOCALAPPDATA\Programs\hiq-cortex\hiq-cortex.exe" version

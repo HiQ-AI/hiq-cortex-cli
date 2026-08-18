@@ -32,26 +32,27 @@ case "$(uname -m)" in
   *) die "不支持的架构: $(uname -m)" ;;
 esac
 
+# No version lookup: GitHub resolves `releases/latest/download/<asset>` itself,
+# which keeps a first install off the anonymous API and its 60-req/hour limit.
 version="${HIQ_CORTEX_VERSION:-}"
-if [ -z "$version" ]; then
-  info "查询最新版本…"
-  version=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
-    | sed -n 's/.*"tag_name" *: *"v\{0,1\}\([^"]*\)".*/\1/p' | head -1)
-  [ -n "$version" ] || die "查不到最新版本,可用 HIQ_CORTEX_VERSION 指定"
+if [ -n "${HIQ_CORTEX_BASE_URL:-}" ]; then
+  base="$HIQ_CORTEX_BASE_URL"
+elif [ -n "$version" ]; then
+  base="https://github.com/$REPO/releases/download/v${version#v}"
+else
+  base="https://github.com/$REPO/releases/latest/download"
 fi
-version="${version#v}"
 
-base="${HIQ_CORTEX_BASE_URL:-https://github.com/$REPO/releases/download/v$version}"
-archive="hiq-cortex-$version-$os-$arch.tar.gz"
+archive="hiq-cortex-$os-$arch.tar.gz"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-info "下载 hiq-cortex $version ($os-$arch)…"
+info "下载 hiq-cortex ${version:-latest} ($os-$arch)…"
 curl -fsSL "$base/$archive" -o "$tmp/$archive" || die "下载失败: $base/$archive"
 
 # Checksums are advisory: verify when the file and a hashing tool are both
 # available, never block the install because the box lacks shasum.
-if curl -fsSL "$base/hiq-cortex-$version-checksums.txt" -o "$tmp/sums.txt" 2>/dev/null; then
+if curl -fsSL "$base/checksums.txt" -o "$tmp/sums.txt" 2>/dev/null; then
   if command -v shasum >/dev/null 2>&1; then sha=$(shasum -a 256 "$tmp/$archive" | cut -d' ' -f1)
   elif command -v sha256sum >/dev/null 2>&1; then sha=$(sha256sum "$tmp/$archive" | cut -d' ' -f1)
   else sha=""; fi

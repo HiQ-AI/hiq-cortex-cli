@@ -16,26 +16,26 @@ $InstallDir = if ($env:HIQ_CORTEX_INSTALL) { $env:HIQ_CORTEX_INSTALL } else { "$
 
 if ([Environment]::Is64BitOperatingSystem -eq $false) { throw '需要 64 位 Windows' }
 
-$version = $env:HIQ_CORTEX_VERSION
-if (-not $version) {
-  Write-Host '查询最新版本…'
-  $version = (Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest").tag_name
-}
-$version = $version -replace '^v', ''
+# No version lookup: GitHub resolves `releases/latest/download/<asset>` itself,
+# which keeps a first install off the anonymous API and its 60-req/hour limit.
+$version = $env:HIQ_CORTEX_VERSION -replace '^v', ''
+$base =
+  if ($env:HIQ_CORTEX_BASE_URL) { $env:HIQ_CORTEX_BASE_URL }
+  elseif ($version) { "https://github.com/$Repo/releases/download/v$version" }
+  else { "https://github.com/$Repo/releases/latest/download" }
 
-$base = if ($env:HIQ_CORTEX_BASE_URL) { $env:HIQ_CORTEX_BASE_URL } else { "https://github.com/$Repo/releases/download/v$version" }
-$archive = "hiq-cortex-$version-windows-x64.zip"
+$archive = 'hiq-cortex-windows-x64.zip'
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ([Guid]::NewGuid())
 New-Item -ItemType Directory -Path $tmp | Out-Null
 
 try {
-  Write-Host "下载 hiq-cortex $version (windows-x64)…"
+  Write-Host "下载 hiq-cortex $(if ($version) { $version } else { 'latest' }) (windows-x64)…"
   Invoke-WebRequest "$base/$archive" -OutFile "$tmp\$archive" -UseBasicParsing
 
   # Checksum verification is best-effort — a missing checksums file must not
   # block the install, a mismatching one must.
   try {
-    Invoke-WebRequest "$base/hiq-cortex-$version-checksums.txt" -OutFile "$tmp\sums.txt" -UseBasicParsing
+    Invoke-WebRequest "$base/checksums.txt" -OutFile "$tmp\sums.txt" -UseBasicParsing
     $sha = (Get-FileHash "$tmp\$archive" -Algorithm SHA256).Hash.ToLower()
     if (-not (Select-String -Path "$tmp\sums.txt" -Pattern $sha -Quiet)) { throw '校验和不匹配,已中止安装' }
     Write-Host '校验和 OK'
