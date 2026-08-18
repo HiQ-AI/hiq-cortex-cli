@@ -13,11 +13,44 @@ varies several-fold across those dimensions. This CLI gets you the actual number
 Apache-2.0. The client is thin — search, ranking and match-quality scoring all
 run server-side; this package posts your query and renders what comes back.
 
+## Install
+
+A single self-contained executable — nothing else has to be on the machine, no
+Node, no Python, no runtime of any kind.
+
+**macOS / Linux**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/HiQ-AI/hiq-cortex-cli/main/scripts/install.sh | sh
+```
+
+**Windows**
+
+```powershell
+irm https://raw.githubusercontent.com/HiQ-AI/hiq-cortex-cli/main/scripts/install.ps1 | iex
+```
+
+Both installers detect the platform, verify the checksum, and drop `hiq-cortex`
+into a per-user directory (`~/.local/bin`, `%LOCALAPPDATA%\Programs\hiq-cortex`)
+— no sudo, no admin. `HIQ_CORTEX_VERSION`, `HIQ_CORTEX_INSTALL` and
+`HIQ_CORTEX_BASE_URL` (mirror origin) override the defaults.
+
+Prebuilt binaries for macOS (arm64 / x64), Linux (x64 / arm64) and Windows (x64)
+are also attached to every [release](https://github.com/HiQ-AI/hiq-cortex-cli/releases)
+directly, with a checksums file.
+
+**Where Node is already there** — agent hosts, CI, an existing project — the same
+CLI ships on npm, which skips the download step entirely:
+
+```bash
+npx @hiq-ai/hiq-cortex-cli doctor
+```
+
 ## Quick start
 
 ```bash
-npx @hiq-ai/hiq-cortex-cli login          # QR sign-in, no registration needed
-npx @hiq-ai/hiq-cortex-cli search "304 不锈钢"
+hiq-cortex login              # QR sign-in, no registration needed
+hiq-cortex search "304 不锈钢"
 ```
 
 ```
@@ -114,9 +147,18 @@ BAFU 在欧洲语境下是很好的默认选择，worldsteel 覆盖钢铁，USLC
 
 ```bash
 npm install
-npm run build     # tsc → dist/
-npm run dev       # tsx src/cli.ts
+npm run build       # tsc → dist/ (the npm channel)
+npm run dev         # tsx src/cli.ts
+npm run build:bin   # bun --compile → dist-bin/ (every platform, needs bun)
 ```
+
+`build:bin` cross-compiles all five targets from whichever machine runs it;
+only the Darwin binaries need a Mac, to be codesigned. Releases build them on a
+macOS runner for that reason.
+
+The version lives in `package.json` alone — `prebuild` stamps it into
+`src/version.ts`, because a single-file binary has no manifest to read at
+runtime.
 
 ## License
 

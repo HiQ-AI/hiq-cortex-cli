@@ -173,7 +173,9 @@ async function main(): Promise<void> {
     (err) => fail(json, err),
   );
 
-  await withTools.demandCommand(1).strict().help().alias("h", "help").parse();
+  // .version(VERSION) is explicit on purpose: left to itself yargs walks up the
+  // filesystem looking for a package.json, which a single-file binary has not got.
+  await withTools.demandCommand(1).strict().help().alias("h", "help").version(VERSION).parse();
 }
 
 main().catch((e) => fail(process.argv.includes("--json"), e));
