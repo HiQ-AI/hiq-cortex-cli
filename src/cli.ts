@@ -12,7 +12,6 @@
  * Exit codes: 0 ok · 2 config · 3 validation · 4 upstream · 5 transport · 1 unknown.
  */
 import yargs from "yargs";
-import { hideBin } from "yargs/helpers";
 
 import { config, hasCredential } from "./config.js";
 import { registerToolCommands, toolAlias, type CatalogTool } from "./dynamicCommands.js";
@@ -59,7 +58,14 @@ async function catalog(): Promise<CatalogTool[]> {
 }
 
 async function main(): Promise<void> {
-  const argvRaw = hideBin(process.argv);
+  // NOT hideBin(): a host running us under ELECTRON_RUN_AS_NODE still reports
+  // `process.versions.electron` with `process.defaultApp` unset, which makes
+  // yargs think it is a packaged Electron app and strip only argv[0] — the
+  // script path then survives as a positional and every command fails. This
+  // CLI always starts as `<runtime> cli.js …`, so argv[2:] is right for plain
+  // node, Electron-as-node, and the bun-compiled binary alike. (Bit us for
+  // real in @hiq-ai/hiq-editor 0.9.3.)
+  const argvRaw = process.argv.slice(2);
   const json = argvRaw.includes("--json");
 
   // Tool subcommands need the server catalog. Only fetch it when the first
