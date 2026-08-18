@@ -21,13 +21,13 @@ Node, no Python, no runtime of any kind.
 **macOS / Linux**
 
 ```bash
-curl -fsSL https://download.hiq.earth/cli/install.sh | sh
+curl -fsSL https://download.hiq.earth/cli/hiq-cortex/install.sh | sh
 ```
 
 **Windows**
 
 ```powershell
-irm https://download.hiq.earth/cli/install.ps1 | iex
+irm https://download.hiq.earth/cli/hiq-cortex/install.ps1 | iex
 ```
 
 Served from a CDN that is reachable from mainland China, where github.com and
