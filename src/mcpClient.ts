@@ -43,6 +43,15 @@ export function getClient(): Promise<Client> {
   return clientPromise;
 }
 
+/** 认出「凭据被拒」:优先看 SDK 带出来的 HTTP 状态,没有就从响应体文本里认
+ *  401/403。只认这两个码 —— 其余一律算连接问题,宁可少判也不误判。 */
+function isAuthRejection(err: unknown, msg: string): boolean {
+  const e = err as { status?: number; code?: number } | undefined;
+  if (e?.status === 401 || e?.status === 403) return true;
+  if (e?.code === 401 || e?.code === 403) return true;
+  return /\b(401|403)\b/.test(msg);
+}
+
 async function connect(): Promise<Client> {
   const client = new Client(
     { name: "hiq-cortex-cli", version: VERSION },
@@ -60,10 +69,17 @@ async function connect(): Promise<Client> {
   try {
     await client.connect(transport);
   } catch (err) {
-    throw new CortexClientError(
-      "transport",
-      `cannot reach the Cortex API (${config.mcpUrl}): ${(err as Error).message}`,
-    );
+    const msg = (err as Error).message;
+    // 「连不上」和「凭据被拒」要分开报:前者让人查网络,后者让人重新登录。
+    // 都塞进 transport 的话,过期的凭据会被说成网络故障。
+    if (isAuthRejection(err, msg)) {
+      throw new CortexClientError(
+        "config",
+        `the Cortex API rejected this credential (401/403). Run \`hiq-cortex login\` again, ` +
+          `or check HIQ_API_KEY. Server said: ${msg}`,
+      );
+    }
+    throw new CortexClientError("transport", `cannot reach the Cortex API (${config.mcpUrl}): ${msg}`);
   }
   return client;
 }

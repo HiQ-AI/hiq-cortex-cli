@@ -95,6 +95,15 @@ export async function runSearch(query: string, sources?: string): Promise<Search
   }
 
   const raw = await resp.text();
+  if (resp.status === 401 || resp.status === 403) {
+    // 不是「服务端拒绝这次请求」(那是 upstream,改参数没用),是凭据本身不行 —— 
+    // 该去重新登录,所以按 config 报。
+    throw new CortexClientError(
+      "config",
+      `the search endpoint rejected this credential (HTTP ${resp.status}). ` +
+        `Run \`hiq-cortex login\` again, or check HIQ_API_KEY. ${raw.slice(0, 200)}`,
+    );
+  }
   if (!resp.ok) {
     throw new CortexClientError("upstream", `search failed: HTTP ${resp.status} ${raw.slice(0, 300)}`);
   }
