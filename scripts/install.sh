@@ -14,6 +14,11 @@ set -eu
 REPO=HiQ-AI/hiq-cortex-cli
 INSTALL_DIR="${HIQ_CORTEX_INSTALL:-$HOME/.local/bin}"
 
+# Default download origin. scripts/mirror-to-cdn.sh rewrites this one line in
+# the copy it serves from download.hiq.earth, so users behind the GFW get a
+# reachable origin without a second copy of this script to keep in sync.
+DEFAULT_BASE="https://github.com/$REPO/releases/latest/download"
+
 die() { printf '错误: %s\n' "$1" >&2; exit 1; }
 info() { printf '%s\n' "$1" >&2; }
 
@@ -40,7 +45,7 @@ if [ -n "${HIQ_CORTEX_BASE_URL:-}" ]; then
 elif [ -n "$version" ]; then
   base="https://github.com/$REPO/releases/download/v${version#v}"
 else
-  base="https://github.com/$REPO/releases/latest/download"
+  base="$DEFAULT_BASE"
 fi
 
 archive="hiq-cortex-$os-$arch.tar.gz"

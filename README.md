@@ -21,14 +21,18 @@ Node, no Python, no runtime of any kind.
 **macOS / Linux**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/HiQ-AI/hiq-cortex-cli/main/scripts/install.sh | sh
+curl -fsSL https://download.hiq.earth/cli/install.sh | sh
 ```
 
 **Windows**
 
 ```powershell
-irm https://raw.githubusercontent.com/HiQ-AI/hiq-cortex-cli/main/scripts/install.ps1 | iex
+irm https://download.hiq.earth/cli/install.ps1 | iex
 ```
+
+Served from a CDN that is reachable from mainland China, where github.com and
+raw.githubusercontent.com are both blocked; GitHub Releases stays the source of
+truth and mirrors within a minute of each tag.
 
 Both installers detect the platform, verify the checksum, and drop `hiq-cortex`
 into a per-user directory (`~/.local/bin`, `%LOCALAPPDATA%\Programs\hiq-cortex`)
