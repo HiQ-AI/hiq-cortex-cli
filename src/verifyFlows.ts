@@ -142,7 +142,7 @@ export function formatVerifyFlows(r: VerifyFlowsResult): string {
     `${r.source.code} ${r.source.version}: ${r.total} 个 id,找到 ${r.found},缺 ${r.missing},单位不符 ${r.unitMismatch}`,
   );
   if (r.restricted) {
-    out.push("(该源需数据包权益才回逐条明细;当前只有计数。`hiq-cortex login` 后重试。)");
+    out.push("(该源是商业源,当前凭据没有它的数据包权益 —— 只回计数,不回逐条明细。计数照样算数;要看哪一行,需开通该库。)");
     return out.join("\n");
   }
   for (const f of r.flows) {
