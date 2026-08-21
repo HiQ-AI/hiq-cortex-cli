@@ -19,6 +19,7 @@ import { credentialsPath, runLogin, runLogout } from "./login.js";
 import { callTool, listTools } from "./mcpClient.js";
 import { RENDERERS } from "./format.js";
 import { formatSearch, runSearch } from "./search.js";
+import { formatVerifyFlows, parseFlowsArg, runVerifyFlows } from "./verifyFlows.js";
 import { CortexClientError, EXIT, exitCodeFor } from "./types.js";
 import { VERSION } from "./version.js";
 
@@ -97,6 +98,31 @@ async function main(): Promise<void> {
           const r = await runSearch(String(a.query), a.sources as string | undefined);
           if (a.json) process.stdout.write(JSON.stringify({ ok: true, tool: "search", data: r }) + "\n");
           else process.stdout.write(formatSearch(r) + "\n");
+        } catch (e) {
+          fail(Boolean(a.json), e);
+        }
+      },
+    )
+    .command(
+      "verify-flows",
+      "核验基本流 id(可带单位)是否在某源某版本的目录里 —— 给数据集制作当判据,不是查数",
+      (y) =>
+        y
+          .option("source", { type: "string", demandOption: true, describe: "源 code,如 hiqlcd / ecoinvent" })
+          // 不叫 --version:那是 yargs 全局的「打印 CLI 版本」,会把值吃成未知参数。与 search 结果字段 src/ver 同名法。
+          .option("ver", { type: "string", demandOption: true, describe: "坐标版本,如 1.5.0(必填:核验按坐标)" })
+          .option("flows", {
+            type: "string",
+            demandOption: true,
+            describe: "id[:unit],id[:unit],… 或 @file(JSON 数组,元素为字符串或 {id, unit})",
+          }),
+      async (a) => {
+        try {
+          const r = await runVerifyFlows(String(a.source), String(a.ver), parseFlowsArg(String(a.flows)));
+          if (a.json) process.stdout.write(JSON.stringify({ ok: true, tool: "verify-flows", data: r }) + "\n");
+          else process.stdout.write(formatVerifyFlows(r) + "\n");
+          // 有缺 / 单位不符 → 退出码 2,让脚本不用解析就能判「没全对」
+          if (r.missing > 0 || r.unitMismatch > 0) process.exit(2);
         } catch (e) {
           fail(Boolean(a.json), e);
         }

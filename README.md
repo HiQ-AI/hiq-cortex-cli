@@ -72,13 +72,23 @@ and a **link** to the dataset page. A number without its basis is not usable.
 
 ```bash
 hiq-cortex search "<你的原话>" [--sources BAFU,Ecoinvent]   # 材料 / BOM 行 → 候选数据集
+hiq-cortex verify-flows --source hiqlcd --ver 1.5.0 --flows "id:kg,id2,…"   # 基本流 id(+单位)核验
 hiq-cortex list                       # 全部子命令(--json 出 schema)
 hiq-cortex describe aggregate-datasets   # 某个子命令的参数
 hiq-cortex doctor                     # 凭据来源 + 连通性自检
 hiq-cortex login / logout
 ```
 
-Beyond `search`, subcommands are **generated at runtime from the server's tool
+`verify-flows` is for **dataset authoring, not querying**: it checks elementary-flow
+ids — and optionally the unit your row uses — against the catalog the calculation
+actually reads for that source coordinate (`/api/relic/flows/verify`). Identity is
+(name, compartment, unit); a uuid alone cannot tell `sm3` from `m3`, and a wrong id
+is silent downstream. `--flows` takes `id[:unit],…` or `@file` (JSON array of strings
+or `{id, unit}`); `--ver` is required because verification is per coordinate. Exit 2
+when anything is missing or a unit mismatches, so scripts can branch without parsing.
+Commercial sources return counts only without an entitlement.
+
+Beyond `search` and `verify-flows`, subcommands are **generated at runtime from the server's tool
 catalog** — there is no schema copy in this package to drift when the server
 adds a field. At the time of writing:
 
