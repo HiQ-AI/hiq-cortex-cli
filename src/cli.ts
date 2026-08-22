@@ -20,6 +20,7 @@ import { callTool, listTools } from "./mcpClient.js";
 import { RENDERERS } from "./format.js";
 import { formatSearch, runSearch } from "./search.js";
 import { formatVerifyFlows, parseFlowsArg, runVerifyFlows } from "./verifyFlows.js";
+import { formatSearchFlows, parseQueriesArg, runSearchFlows } from "./searchFlows.js";
 import { CortexClientError, EXIT, exitCodeFor } from "./types.js";
 import { VERSION } from "./version.js";
 
@@ -123,6 +124,25 @@ async function main(): Promise<void> {
           else process.stdout.write(formatVerifyFlows(r) + "\n");
           // 有缺 / 单位不符 → 退出码 2,让脚本不用解析就能判「没全对」
           if (r.missing > 0 || r.unitMismatch > 0) process.exit(2);
+        } catch (e) {
+          fail(Boolean(a.json), e);
+        }
+      },
+    )
+    .command(
+      "search-flows",
+      "检索基本流候选(名 / 同义词 / CAS / 化学式 BM25 + 向量)—— 给数据集制作的 H 列当候选源",
+      (y) =>
+        y
+          .option("source", { type: "string", demandOption: true, describe: "源 code,如 hiqlcd / ecoinvent" })
+          .option("ver", { type: "string", demandOption: true, describe: "坐标版本,如 1.5.0" })
+          .option("queries", { type: "string", demandOption: true, describe: "q1,q2,… 或 @file(JSON 数组,元素为字符串或 {query, compartment})" })
+          .option("limit", { type: "number", default: 5, describe: "每个 query 回几条(1..50)" }),
+      async (a) => {
+        try {
+          const r = await runSearchFlows(String(a.source), String(a.ver), parseQueriesArg(String(a.queries)), Number(a.limit));
+          if (a.json) process.stdout.write(JSON.stringify({ ok: true, tool: "search-flows", data: r }) + "\n");
+          else process.stdout.write(formatSearchFlows(r) + "\n");
         } catch (e) {
           fail(Boolean(a.json), e);
         }
