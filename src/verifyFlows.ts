@@ -13,12 +13,9 @@
  * Goes straight to `/api/relic/*` — the edge passes the credential through and
  * relic checks it itself. No MCP tool involved.
  */
-import { readFileSync } from "node:fs";
-import { authHeaders, config, hasCredential } from "./config.js";
+import { readJsonArrayArg, relicPost, requireCredential } from "./relicClient.js";
 import { CortexClientError } from "./types.js";
-import { VERSION } from "./version.js";
 
-const TIMEOUT_MS = 60_000;
 const MAX_FLOWS = 5000;
 
 export interface VerifyFlowItem {
@@ -51,14 +48,8 @@ export function parseFlowsArg(arg: string): VerifyFlowItem[] {
   const text = arg.trim();
   if (!text) throw new CortexClientError("validation", "--flows is empty");
   let items: VerifyFlowItem[];
-  if (text.startsWith("@")) {
-    let raw: unknown;
-    try {
-      raw = JSON.parse(readFileSync(text.slice(1), "utf-8"));
-    } catch (err) {
-      throw new CortexClientError("validation", `cannot read ${text.slice(1)}: ${(err as Error).message}`);
-    }
-    if (!Array.isArray(raw)) throw new CortexClientError("validation", "flows file must be a JSON array");
+  const raw = readJsonArrayArg(text, "flows");
+  if (raw) {
     items = raw.map((x) =>
       typeof x === "string"
         ? { id: x }
@@ -77,63 +68,13 @@ export function parseFlowsArg(arg: string): VerifyFlowItem[] {
 }
 
 export async function runVerifyFlows(source: string, version: string, flows: VerifyFlowItem[]): Promise<VerifyFlowsResult> {
-  if (!hasCredential()) {
-    throw new CortexClientError(
-      "config",
-      "No credential. Run `hiq-cortex login` (one browser click, no registration), " +
-        "or set HIQ_API_KEY=sk_… for server-side use. Commercial sources return counts only without one.",
-    );
-  }
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
-  let resp: Response;
-  try {
-    resp = await fetch(`${config.base}/api/relic/flows/verify`, {
-      method: "POST",
-      headers: {
-        ...authHeaders(),
-        "Content-Type": "application/json",
-        "User-Agent": `hiq-cortex-cli/${VERSION}`,
-      },
-      body: JSON.stringify({ source, version, flows }),
-      signal: ctl.signal,
-    });
-  } catch (err) {
-    throw new CortexClientError(
-      "transport",
-      (err as Error).name === "AbortError"
-        ? "verify-flows timed out after 60s"
-        : `cannot reach relic: ${(err as Error).message}`,
-    );
-  } finally {
-    clearTimeout(timer);
-  }
-  const raw = await resp.text();
-  if (resp.status === 401 || resp.status === 403) {
-    throw new CortexClientError(
-      "config",
-      `relic rejected this credential (HTTP ${resp.status}). Run \`hiq-cortex login\` again, or check HIQ_API_KEY. ${raw.slice(0, 200)}`,
-    );
-  }
-  if (!resp.ok) {
-    let code: string | undefined;
-    try {
-      code = (JSON.parse(raw) as { error?: { code?: string } }).error?.code;
-    } catch {
-      /* not JSON */
-    }
-    throw new CortexClientError("upstream", `verify-flows failed: HTTP ${resp.status} ${raw.slice(0, 300)}`, code);
-  }
-  let body: { data?: VerifyFlowsResult };
-  try {
-    body = JSON.parse(raw) as { data?: VerifyFlowsResult };
-  } catch {
-    throw new CortexClientError("upstream", `cannot parse relic response: ${raw.slice(0, 200)}`);
-  }
-  if (!body.data || typeof body.data.total !== "number") {
-    throw new CortexClientError("upstream", `unexpected relic response shape: ${raw.slice(0, 200)}`);
-  }
-  return body.data;
+  requireCredential("Commercial sources return counts only without one.");
+  return relicPost<VerifyFlowsResult>(
+    "flows/verify",
+    "verify-flows",
+    { source, version, flows },
+    (d): d is VerifyFlowsResult => typeof (d as VerifyFlowsResult)?.total === "number",
+  );
 }
 
 export function formatVerifyFlows(r: VerifyFlowsResult): string {

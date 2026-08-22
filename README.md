@@ -74,6 +74,7 @@ and a **link** to the dataset page. A number without its basis is not usable.
 hiq-cortex search "<你的原话>" [--sources BAFU,Ecoinvent]   # 材料 / BOM 行 → 候选数据集
 hiq-cortex verify-flows --source hiqlcd --ver 1.5.0 --flows "id:kg,id2,…"   # 基本流 id(+单位)核验
 hiq-cortex search-flows --source hiqlcd --ver 1.5.0 --queries "二氧化碳,天然气"   # 基本流候选(BM25+向量,中英)
+hiq-cortex verify-datasets --source hiqlcd --ver 1.5.0 --datasets "id:kWh,id2,…"   # 上游数据集 id(+模型/单位/下架)核验
 hiq-cortex list                       # 全部子命令(--json 出 schema)
 hiq-cortex describe aggregate-datasets   # 某个子命令的参数
 hiq-cortex doctor                     # 凭据来源 + 连通性自检
@@ -90,11 +91,18 @@ when anything is missing or a unit mismatches, so scripts can branch without par
 Commercial sources return counts only without an entitlement.
 
 `search-flows` returns elementary-flow candidates for dataset authoring (column H): relic
-`/flows/search`, BM25 over names/synonyms/CAS/formula plus a bge-m3 vector branch, so a Chinese
-item name finds its English catalog entry. `--queries` takes `a,b,…` or `@file` (JSON array of
-strings or `{query, compartment}`); output keeps input order.
+`/flows/search`, BM25 over names/synonyms/CAS/formula plus a Qwen3-Embedding vector branch, so a
+Chinese item name finds its English catalog entry. `--queries` takes `a,b,…` or `@file` (JSON array
+of strings or `{query, compartment}`); output keeps input order.
 
-Beyond `search`, `verify-flows` and `search-flows`, subcommands are **generated at runtime from the server's tool
+`verify-datasets` does for upstream dataset ids (UPR column I) what `verify-flows` does for
+elementary flows: `/datasets/verify` answers whether the id exists at that coordinate, under which
+system models, what its reference unit is and whether it is still published. `--datasets` takes
+`id[:unit],…` or `@file` (JSON array of strings or `{id, model?, unit?}`); an id that exists only
+under another model comes back `found=false` with `availableModels`. Exit 2 on any missing,
+unit-mismatched or unpublished row.
+
+Beyond `search`, `verify-flows`, `search-flows` and `verify-datasets`, subcommands are **generated at runtime from the server's tool
 catalog** — there is no schema copy in this package to drift when the server
 adds a field. At the time of writing:
 

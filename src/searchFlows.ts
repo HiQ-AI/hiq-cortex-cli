@@ -9,12 +9,9 @@
  * Batch shape: the endpoint takes one query; this command loops with small concurrency and
  * returns one entry per query in input order, so a script can read it back by position.
  */
-import { readFileSync } from "node:fs";
-import { authHeaders, config, hasCredential } from "./config.js";
+import { readJsonArrayArg, relicPost, requireCredential } from "./relicClient.js";
 import { CortexClientError } from "./types.js";
-import { VERSION } from "./version.js";
 
-const TIMEOUT_MS = 60_000;
 const CONCURRENCY = 4;
 const MAX_QUERIES = 500;
 
@@ -45,14 +42,8 @@ export function parseQueriesArg(arg: string): FlowSearchQuery[] {
   const text = arg.trim();
   if (!text) throw new CortexClientError("validation", "--queries is empty");
   let items: FlowSearchQuery[];
-  if (text.startsWith("@")) {
-    let raw: unknown;
-    try {
-      raw = JSON.parse(readFileSync(text.slice(1), "utf-8"));
-    } catch (err) {
-      throw new CortexClientError("validation", `cannot read ${text.slice(1)}: ${(err as Error).message}`);
-    }
-    if (!Array.isArray(raw)) throw new CortexClientError("validation", "queries file must be a JSON array");
+  const raw = readJsonArrayArg(text, "queries");
+  if (raw) {
     items = raw.map((x) =>
       typeof x === "string"
         ? { query: x }
@@ -68,46 +59,16 @@ export function parseQueriesArg(arg: string): FlowSearchQuery[] {
 }
 
 async function searchOne(source: string, version: string, q: FlowSearchQuery, limit: number): Promise<FlowSearchResult> {
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
-  let resp: Response;
-  try {
-    resp = await fetch(`${config.base}/api/relic/flows/search`, {
-      method: "POST",
-      headers: { ...authHeaders(), "Content-Type": "application/json", "User-Agent": `hiq-cortex-cli/${VERSION}` },
-      body: JSON.stringify({ source, version, query: q.query, ...(q.compartment ? { compartment: q.compartment } : {}), limit }),
-      signal: ctl.signal,
-    });
-  } catch (err) {
-    throw new CortexClientError(
-      "transport",
-      (err as Error).name === "AbortError" ? "search-flows timed out after 60s" : `cannot reach relic: ${(err as Error).message}`,
-    );
-  } finally {
-    clearTimeout(timer);
-  }
-  const raw = await resp.text();
-  if (resp.status === 401 || resp.status === 403) {
-    throw new CortexClientError("config", `relic rejected this credential (HTTP ${resp.status}). Run \`hiq-cortex login\` again, or check HIQ_API_KEY. ${raw.slice(0, 200)}`);
-  }
-  if (!resp.ok) throw new CortexClientError("upstream", `search-flows failed: HTTP ${resp.status} ${raw.slice(0, 300)}`);
-  let body: { data?: FlowSearchResult };
-  try {
-    body = JSON.parse(raw) as { data?: FlowSearchResult };
-  } catch {
-    throw new CortexClientError("upstream", `cannot parse relic response: ${raw.slice(0, 200)}`);
-  }
-  if (!body.data || !Array.isArray(body.data.flows)) throw new CortexClientError("upstream", `unexpected relic response shape: ${raw.slice(0, 200)}`);
-  return body.data;
+  return relicPost<FlowSearchResult>(
+    "flows/search",
+    "search-flows",
+    { source, version, query: q.query, ...(q.compartment ? { compartment: q.compartment } : {}), limit },
+    (d): d is FlowSearchResult => Array.isArray((d as FlowSearchResult)?.flows),
+  );
 }
 
 export async function runSearchFlows(source: string, version: string, queries: FlowSearchQuery[], limit: number): Promise<FlowSearchResult[]> {
-  if (!hasCredential()) {
-    throw new CortexClientError(
-      "config",
-      "No credential. Run `hiq-cortex login` (one browser click, no registration), or set HIQ_API_KEY=sk_… for server-side use.",
-    );
-  }
+  requireCredential();
   const out: FlowSearchResult[] = new Array(queries.length);
   let next = 0;
   const workers = Array.from({ length: Math.min(CONCURRENCY, queries.length) }, async () => {

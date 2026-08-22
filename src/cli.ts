@@ -19,6 +19,7 @@ import { credentialsPath, runLogin, runLogout } from "./login.js";
 import { callTool, listTools } from "./mcpClient.js";
 import { RENDERERS } from "./format.js";
 import { formatSearch, runSearch } from "./search.js";
+import { formatVerifyDatasets, parseDatasetsArg, runVerifyDatasets } from "./verifyDatasets.js";
 import { formatVerifyFlows, parseFlowsArg, runVerifyFlows } from "./verifyFlows.js";
 import { formatSearchFlows, parseQueriesArg, runSearchFlows } from "./searchFlows.js";
 import { CortexClientError, EXIT, exitCodeFor } from "./types.js";
@@ -124,6 +125,29 @@ async function main(): Promise<void> {
           else process.stdout.write(formatVerifyFlows(r) + "\n");
           // 有缺 / 单位不符 → 退出码 2,让脚本不用解析就能判「没全对」
           if (r.missing > 0 || r.unitMismatch > 0) process.exit(2);
+        } catch (e) {
+          fail(Boolean(a.json), e);
+        }
+      },
+    )
+    .command(
+      "verify-datasets",
+      "核验上游数据集 id(UPR I 列)是否在某源某版本里、模型 / 参考单位对不对、有没有下架",
+      (y) =>
+        y
+          .option("source", { type: "string", demandOption: true, describe: "源 code,如 hiqlcd / ecoinvent" })
+          .option("ver", { type: "string", demandOption: true, describe: "坐标版本,如 1.5.0(必填:核验按坐标)" })
+          .option("datasets", {
+            type: "string",
+            demandOption: true,
+            describe: "id[:unit],id[:unit],… 或 @file(JSON 数组,元素为字符串或 {id, model?, unit?})",
+          }),
+      async (a) => {
+        try {
+          const r = await runVerifyDatasets(String(a.source), String(a.ver), parseDatasetsArg(String(a.datasets)));
+          if (a.json) process.stdout.write(JSON.stringify({ ok: true, tool: "verify-datasets", data: r }) + "\n");
+          else process.stdout.write(formatVerifyDatasets(r) + "\n");
+          if (r.missing > 0 || r.unitMismatch > 0 || r.unpublished > 0) process.exit(2);
         } catch (e) {
           fail(Boolean(a.json), e);
         }
