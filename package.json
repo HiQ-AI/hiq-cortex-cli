@@ -1,6 +1,6 @@
 {
   "name": "@hiq-ai/hiq-cortex-cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "CLI for HiQ Cortex — look up real LCA emission factors from 18 life-cycle inventory databases and 24,000+ published EPDs.",
   "type": "module",
   "bin": {
