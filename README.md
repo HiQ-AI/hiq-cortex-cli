@@ -93,7 +93,9 @@ Commercial sources return counts only without an entitlement.
 `search-flows` returns elementary-flow candidates for dataset authoring (column H): relic
 `/flows/search`, BM25 over names/synonyms/CAS/formula plus a Qwen3-Embedding vector branch, so a
 Chinese item name finds its English catalog entry. `--queries` takes `a,b,…` or `@file` (JSON array
-of strings or `{query, compartment}`); output keeps input order.
+of strings or `{query, compartment?, identity?}`); output keeps input order. `identity` is opaque
+correlation metadata: the CLI never sends it to relic and copies it onto the corresponding result,
+so an authoring workflow can search with a translated alias without losing the source-row identity.
 
 `verify-datasets` does for upstream dataset ids (UPR column I) what `verify-flows` does for
 elementary flows: `/datasets/verify` answers whether the id exists at that coordinate, under which

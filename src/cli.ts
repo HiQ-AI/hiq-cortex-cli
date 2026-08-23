@@ -160,7 +160,7 @@ async function main(): Promise<void> {
         y
           .option("source", { type: "string", demandOption: true, describe: "源 code,如 hiqlcd / ecoinvent" })
           .option("ver", { type: "string", demandOption: true, describe: "坐标版本,如 1.5.0" })
-          .option("queries", { type: "string", demandOption: true, describe: "q1,q2,… 或 @file(JSON 数组,元素为字符串或 {query, compartment})" })
+          .option("queries", { type: "string", demandOption: true, describe: "q1,q2,… 或 @file(JSON 数组,元素为字符串或 {query, compartment?, identity?})" })
           .option("limit", { type: "number", default: 5, describe: "每个 query 回几条(1..50)" }),
       async (a) => {
         try {

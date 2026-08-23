@@ -18,6 +18,8 @@ const MAX_QUERIES = 500;
 export interface FlowSearchQuery {
   query: string;
   compartment?: string;
+  /** Opaque caller correlation id. It is never sent to relic; the CLI only round-trips it. */
+  identity?: string;
 }
 
 export interface FlowCandidate {
@@ -35,9 +37,21 @@ export interface FlowSearchResult {
   branches: { bm25: boolean; vector: boolean };
   total: number;
   flows: FlowCandidate[];
+  /** Opaque caller correlation id copied from the corresponding input query. */
+  identity?: string;
 }
 
-/** `--queries`: inline `a,b,c` (no compartment) or `@file` (JSON array of strings or {query, compartment?}). */
+function queryIdentity(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const identity = String(value).trim();
+  if (!identity) return undefined;
+  if (identity.length > 500 || /[\r\n\0]/u.test(identity)) {
+    throw new CortexClientError("validation", "query identity must be at most 500 characters without control lines");
+  }
+  return identity;
+}
+
+/** `--queries`: inline `a,b,c` (no compartment) or `@file` (JSON array of strings or {query, compartment?, identity?}). */
 export function parseQueriesArg(arg: string): FlowSearchQuery[] {
   const text = arg.trim();
   if (!text) throw new CortexClientError("validation", "--queries is empty");
@@ -47,7 +61,11 @@ export function parseQueriesArg(arg: string): FlowSearchQuery[] {
     items = raw.map((x) =>
       typeof x === "string"
         ? { query: x }
-        : { query: String((x as FlowSearchQuery)?.query ?? ""), compartment: (x as FlowSearchQuery)?.compartment || undefined },
+        : {
+            query: String((x as FlowSearchQuery)?.query ?? ""),
+            compartment: (x as FlowSearchQuery)?.compartment || undefined,
+            identity: queryIdentity((x as FlowSearchQuery)?.identity),
+          },
     );
   } else {
     items = text.split(",").map((q) => ({ query: q.trim() }));
@@ -58,13 +76,20 @@ export function parseQueriesArg(arg: string): FlowSearchQuery[] {
   return items;
 }
 
+export function bindFlowSearchIdentity(result: FlowSearchResult, query: FlowSearchQuery): FlowSearchResult {
+  return query.identity ? { ...result, identity: query.identity } : result;
+}
+
 async function searchOne(source: string, version: string, q: FlowSearchQuery, limit: number): Promise<FlowSearchResult> {
-  return relicPost<FlowSearchResult>(
+  const result = await relicPost<FlowSearchResult>(
     "flows/search",
     "search-flows",
     { source, version, query: q.query, ...(q.compartment ? { compartment: q.compartment } : {}), limit },
     (d): d is FlowSearchResult => Array.isArray((d as FlowSearchResult)?.flows),
   );
+  // Correlation metadata belongs to the caller contract, not the relic HTTP API. Attach it only
+  // after a successful response so the JSON envelope remains an exact record of query -> result.
+  return bindFlowSearchIdentity(result, q);
 }
 
 export async function runSearchFlows(source: string, version: string, queries: FlowSearchQuery[], limit: number): Promise<FlowSearchResult[]> {
