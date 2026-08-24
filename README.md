@@ -72,6 +72,7 @@ and a **link** to the dataset page. A number without its basis is not usable.
 
 ```bash
 hiq-cortex search "<你的原话>" [--sources BAFU,Ecoinvent]   # 材料 / BOM 行 → 候选数据集
+hiq-cortex search-datasets --source hiqlcd --ver 1.5.0 --model CUT_OFF --queries "电力,天然气" # 确定性目录候选(低延迟)
 hiq-cortex verify-flows --source hiqlcd --ver 1.5.0 --flows "id:kg,id2,…"   # 基本流 id(+单位)核验
 hiq-cortex search-flows --source hiqlcd --ver 1.5.0 --queries "二氧化碳,天然气"   # 基本流候选(BM25+向量,中英)
 hiq-cortex verify-datasets --source hiqlcd --ver 1.5.0 --datasets "id:kWh,id2,…"   # 上游数据集 id(+模型/单位/下架)核验
@@ -90,6 +91,12 @@ or `{id, unit}`); `--ver` is required because verification is per coordinate. Ex
 when anything is missing or a unit mismatches, so scripts can branch without parsing.
 Commercial sources return counts only without an entitlement.
 
+`search-datasets` is the deterministic first pass for dataset authoring. It queries the relic
+catalog directly, keeps the canonical `datasetRef`, source/version/model, reference unit and
+location variants, and accepts a batch of strings or `{query, locations?, activityTypes?,
+identity?}` records through `--queries`. It does no LLM translation or ranking. Use the slower
+`search` command only when the direct catalog pass has no defensible candidate.
+
 `search-flows` returns elementary-flow candidates for dataset authoring (column H): relic
 `/flows/search`, BM25 over names/synonyms/CAS/formula plus a Qwen3-Embedding vector branch, so a
 Chinese item name finds its English catalog entry. `--queries` takes `a,b,…` or `@file` (JSON array
@@ -104,7 +111,7 @@ system models, what its reference unit is and whether it is still published. `--
 under another model comes back `found=false` with `availableModels`. Exit 2 on any missing,
 unit-mismatched or unpublished row.
 
-Beyond `search`, `verify-flows`, `search-flows` and `verify-datasets`, subcommands are **generated at runtime from the server's tool
+Beyond `search`, `search-datasets`, `verify-flows`, `search-flows` and `verify-datasets`, subcommands are **generated at runtime from the server's tool
 catalog** — there is no schema copy in this package to drift when the server
 adds a field. At the time of writing:
 
