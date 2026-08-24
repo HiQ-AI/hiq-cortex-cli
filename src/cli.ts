@@ -19,13 +19,14 @@ import { credentialsPath, runLogin, runLogout } from "./login.js";
 import { callTool, listTools } from "./mcpClient.js";
 import { RENDERERS } from "./format.js";
 import { formatSearch, runSearch } from "./search.js";
+import { formatSearchDatasets, parseDatasetQueriesArg, runSearchDatasets } from "./searchDatasets.js";
 import { formatVerifyDatasets, parseDatasetsArg, runVerifyDatasets } from "./verifyDatasets.js";
 import { formatVerifyFlows, parseFlowsArg, runVerifyFlows } from "./verifyFlows.js";
 import { formatSearchFlows, parseQueriesArg, runSearchFlows } from "./searchFlows.js";
 import { CortexClientError, EXIT, exitCodeFor } from "./types.js";
 import { VERSION } from "./version.js";
 
-const STATIC = new Set(["search", "list", "describe", "call", "doctor", "login", "logout", "version"]);
+const STATIC = new Set(["search", "search-datasets", "search-flows", "verify-datasets", "verify-flows", "list", "describe", "call", "doctor", "login", "logout", "version"]);
 
 function emit(json: boolean, tool: string, text: string): void {
   if (json) {
@@ -100,6 +101,34 @@ async function main(): Promise<void> {
           const r = await runSearch(String(a.query), a.sources as string | undefined);
           if (a.json) process.stdout.write(JSON.stringify({ ok: true, tool: "search", data: r }) + "\n");
           else process.stdout.write(formatSearch(r) + "\n");
+        } catch (e) {
+          fail(Boolean(a.json), e);
+        }
+      },
+    )
+    .command(
+      "search-datasets",
+      "直接检索数据集目录候选(确定性、低延迟)—— 数据集制作先走它,无候选再用 search 做语义研究",
+      (y) =>
+        y
+          .option("source", { type: "string", demandOption: true, describe: "源 code,如 hiqlcd / ecoinvent" })
+          .option("ver", { type: "string", demandOption: true, describe: "坐标版本,如 1.5.0" })
+          .option("model", { type: "string", default: "CUT_OFF", describe: "系统模型" })
+          .option("locale", { type: "string", default: "zh_CN", describe: "目录检索 locale" })
+          .option("queries", { type: "string", demandOption: true, describe: "q1,q2,… 或 @file(JSON 数组,元素为字符串或 {query, locations?, activityTypes?, identity?})" })
+          .option("limit", { type: "number", default: 5, describe: "每个 query 返回的生产活动数(1..20)" }),
+      async (a) => {
+        try {
+          const r = await runSearchDatasets(
+            String(a.source),
+            String(a.ver),
+            String(a.model),
+            String(a.locale),
+            parseDatasetQueriesArg(String(a.queries)),
+            Number(a.limit),
+          );
+          if (a.json) process.stdout.write(JSON.stringify({ ok: true, tool: "search-datasets", data: r }) + "\n");
+          else process.stdout.write(formatSearchDatasets(r) + "\n");
         } catch (e) {
           fail(Boolean(a.json), e);
         }

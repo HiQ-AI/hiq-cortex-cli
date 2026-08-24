@@ -9,7 +9,7 @@
  * Batch shape: the endpoint takes one query; this command loops with small concurrency and
  * returns one entry per query in input order, so a script can read it back by position.
  */
-import { readJsonArrayArg, relicPost, requireCredential } from "./relicClient.js";
+import { opaqueIdentity, readJsonArrayArg, relicPost, requireCredential } from "./relicClient.js";
 import { CortexClientError } from "./types.js";
 
 const CONCURRENCY = 4;
@@ -41,16 +41,6 @@ export interface FlowSearchResult {
   identity?: string;
 }
 
-function queryIdentity(value: unknown): string | undefined {
-  if (value === undefined || value === null || value === "") return undefined;
-  const identity = String(value).trim();
-  if (!identity) return undefined;
-  if (identity.length > 500 || /[\r\n\0]/u.test(identity)) {
-    throw new CortexClientError("validation", "query identity must be at most 500 characters without control lines");
-  }
-  return identity;
-}
-
 /** `--queries`: inline `a,b,c` (no compartment) or `@file` (JSON array of strings or {query, compartment?, identity?}). */
 export function parseQueriesArg(arg: string): FlowSearchQuery[] {
   const text = arg.trim();
@@ -64,7 +54,7 @@ export function parseQueriesArg(arg: string): FlowSearchQuery[] {
         : {
             query: String((x as FlowSearchQuery)?.query ?? ""),
             compartment: (x as FlowSearchQuery)?.compartment || undefined,
-            identity: queryIdentity((x as FlowSearchQuery)?.identity),
+            identity: opaqueIdentity((x as FlowSearchQuery)?.identity, "query identity"),
           },
     );
   } else {

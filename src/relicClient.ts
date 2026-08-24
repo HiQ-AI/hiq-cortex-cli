@@ -1,9 +1,9 @@
 /**
  * Shared HTTP path for the relic-backed authoring commands (`verify-flows`,
- * `search-flows`, `verify-datasets`). They all go straight to `/api/relic/*` —
+ * `search-flows`, `search-datasets`, `verify-datasets`). They all go straight to `/api/relic/*` —
  * the edge passes the credential through and relic checks it itself; no MCP
  * tool involved. One place for credential gating, timeout, auth-rejection and
- * envelope unwrapping so the three commands cannot drift on error semantics.
+ * envelope unwrapping so these commands cannot drift on error semantics.
  */
 import { readFileSync } from "node:fs";
 import { authHeaders, config, hasCredential } from "./config.js";
@@ -91,4 +91,15 @@ export function readJsonArrayArg(arg: string, what: string): unknown[] | null {
   }
   if (!Array.isArray(raw)) throw new CortexClientError("validation", `${what} file must be a JSON array`);
   return raw;
+}
+
+/** Validate caller-owned correlation metadata before copying it into a result. */
+export function opaqueIdentity(value: unknown, label = "identity"): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const identity = String(value).trim();
+  if (!identity) return undefined;
+  if (identity.length > 500 || /[\r\n\0]/u.test(identity)) {
+    throw new CortexClientError("validation", `${label} must be at most 500 characters without control lines`);
+  }
+  return identity;
 }
