@@ -9,7 +9,7 @@
 #      NO repo secret; npm generates provenance from the OIDC claim. One-time
 #      setup: publish 0.1.0 by hand, then add this repo+workflow as a Trusted
 #      Publisher in the package's npmjs.com settings.
-#   4. GitHub Release — carries the binaries, checksums and the npm tarball.
+#   4. GitHub Release — binaries, skill ZIP, Agent guide, checksums and npm tarball.
 name: release
 
 on:

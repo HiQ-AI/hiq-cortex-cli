@@ -209,6 +209,7 @@ test("organization knowledge through CLI processes and a clean npm install", { t
     const metadata = JSON.parse(packed.stdout)[0];
     assert.ok(metadata.files.some((f: { path: string }) => f.path === "dist/knowledge.js"));
     assert.ok(metadata.files.some((f: { path: string }) => f.path === "skills/organization-knowledge/SKILL.md"));
+    assert.ok(metadata.files.some((f: { path: string }) => f.path === "docs/agent-setup.md"));
     assert.ok(metadata.files.every((f: { path: string }) => !/(credentials|\.env)/u.test(f.path)));
     const install = join(root, "install");
     await mkdir(install);
@@ -218,6 +219,11 @@ test("organization knowledge through CLI processes and a clean npm install", { t
       await readFile(join(install, "node_modules/@hiq-ai/hiq-cortex-cli/skills/organization-knowledge/SKILL.md"), "utf8"),
       await readFile(join(repo, "skills/organization-knowledge/SKILL.md"), "utf8"),
       "the installed skill must match the release source",
+    );
+    assert.equal(
+      await readFile(join(install, "node_modules/@hiq-ai/hiq-cortex-cli/docs/agent-setup.md"), "utf8"),
+      await readFile(join(repo, "docs/agent-setup.md"), "utf8"),
+      "the installed guide must match the release source",
     );
     const manifestPath = join(install, "node_modules", "@hiq-ai", "hiq-cortex-cli", "package.json");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));

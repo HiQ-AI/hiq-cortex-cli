@@ -12,6 +12,7 @@
   "files": [
     "dist",
     "skills",
+    "docs/agent-setup.md",
     "README.md",
     "LICENSE"
   ],

@@ -10,6 +10,7 @@
 # Layout under the shared cortex-desktop-downloads bucket — namespaced per tool,
 # so hiq-editor and anything after it drop in beside this one:
 #   cli/<tool>/install.sh|.ps1   the installers, CDN-default variants
+#   cli/<tool>/agent-setup.md    the Agent guide from the mirrored release
 #   cli/<tool>/latest/<asset>    stable names — what install.sh fetches
 #   cli/<tool>/releases/v<ver>/… archive
 set -euo pipefail
@@ -26,7 +27,10 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 
 echo "→ 拉 $TAG 的产物"
 gh release download "$TAG" --repo "$REPO" --dir "$tmp" \
-  --pattern 'hiq-cortex-*' --pattern 'checksums.txt'
+  --pattern 'hiq-cortex-*' --pattern 'checksums.txt' --pattern 'agent-setup.md'
+
+# Fail before changing the stable mirror if the release predates this guide.
+test -s "$tmp/agent-setup.md" || { echo "$TAG 缺少 agent-setup.md"; exit 1; }
 
 echo "→ 传 S3"
 for f in "$tmp"/*; do
@@ -44,6 +48,7 @@ grep -q "$CDN/cli/$TOOL/latest" "$tmp/install.ps1" || { echo "install.ps1 的默
 
 aws s3 cp "$tmp/install.sh"  "s3://$BUCKET/cli/$TOOL/install.sh"  --content-type 'text/x-shellscript' --cache-control 'public,max-age=300' --only-show-errors
 aws s3 cp "$tmp/install.ps1" "s3://$BUCKET/cli/$TOOL/install.ps1" --content-type 'text/plain'         --cache-control 'public,max-age=300' --only-show-errors
+aws s3 cp "$tmp/agent-setup.md" "s3://$BUCKET/cli/$TOOL/agent-setup.md" --content-type 'text/markdown; charset=utf-8' --cache-control 'public,max-age=300' --only-show-errors
 
 echo "→ CloudFront 失效"
 aws cloudfront create-invalidation --distribution-id "$DIST" --paths "/cli/$TOOL/*" --query 'Invalidation.Id' --output text

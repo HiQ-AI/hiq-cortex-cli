@@ -15,6 +15,14 @@ run server-side; this package posts your query and renders what comes back.
 
 ## Install
 
+For an agent setup, copy this request into Codex, Claude Code or another agent
+with a terminal:
+
+> 请根据 https://download.hiq.earth/cli/hiq-cortex/agent-setup.md 安装 Cortex 组织知识 skill 并完成接入。组织 ID：`<organization-id>`。需要登录时请自行发起登录并把授权链接发给我；授权后继续查询：`<你的问题>`。
+
+The [Agent setup guide](docs/agent-setup.md) covers CLI installation, the standard
+skill installer, native device login, account checks and a real knowledge query.
+
 A single self-contained executable — nothing else has to be on the machine, no
 Node, no Python, no runtime of any kind.
 
@@ -125,40 +133,25 @@ service release. The local HTTP/package tests do not establish live availability
 The CLI includes one [organization-knowledge skill](skills/organization-knowledge/SKILL.md).
 It guides account verification, search, revision-bound reading, links, sources,
 and citations. It contains no knowledge copy or credentials and does not grant
-permissions. Install the CLI separately, run `hiq-cortex login` yourself, and
-check `hiq-cortex doctor --org <organization-id> --json` before using it in an agent.
-The CLI must be visible in that host's terminal, or you can supply its full path.
+permissions. Use the short setup request above: the agent reads the guide,
+installs just this skill for its current host with the
+[standard skills installer](https://github.com/vercel-labs/skills), and starts
+`hiq-cortex login --json` when needed. You click the authorization link; the CLI
+polls and stores its credential, then the agent verifies the selected organization
+and continues your query. No API key or additional MCP server is needed.
 
-The npm package contains `skills/organization-knowledge/SKILL.md`. Every release
-also includes `hiq-cortex-organization-knowledge.zip`, built from that same file
-and covered by `checksums.txt`. Download the ZIP and checksums from the
-[GitHub release](https://github.com/HiQ-AI/hiq-cortex-cli/releases/tag/v0.5.0)
-or the versioned CDN URLs:
+Cortex Cowork's CLI installation and identity integration are not yet verified
+by this guide. A Desktop login or imported skill alone does not establish an
+Agent query path. Do not use the standard installer's `--agent cortex` for HiQ
+Cortex Cowork: that target is Snowflake Cortex Code.
 
-```text
-https://download.hiq.earth/cli/hiq-cortex/releases/v0.5.0/hiq-cortex-organization-knowledge.zip
-https://download.hiq.earth/cli/hiq-cortex/releases/v0.5.0/checksums.txt
-```
-
-Use the host's native skill installation; there is no extra MCP server:
-
-| Host | Install the same skill | Use it |
-|---|---|---|
-| Cortex Cowork | In Skills Center, import the ZIP and enable the skill. The existing skill sync mounts it into the Cowork plugin. | Ask Cowork to use `organization-knowledge` for the selected organization. Cortex Desktop does not currently bundle this CLI. |
-| Codex local session | Extract `organization-knowledge/` into the project's `.agents/skills/`. | Start a session in that project and invoke `$organization-knowledge`. |
-| Claude Code local session | Extract `organization-knowledge/` into the project's `.claude/skills/`. | Start a session in that project and invoke `/organization-knowledge`. |
-
-Example request: "Use organization-knowledge to find the interface decisions for
-organization `<organization-id>`. Read the matching published page version and
-cite its sources." Loading the skill does not establish connectivity: each host
-still needs its native terminal, network access, and the CLI's own login. Remote
-or cloud sessions do not automatically inherit a local installation or login.
-
-These paths follow [Codex native skills](https://learn.chatgpt.com/docs/build-skills)
-and [Claude Code native skills](https://code.claude.com/docs/en/skills). Claude Code
-must allow the project settings source; `--safe-mode` disables skill discovery.
-Cortex Cowork uses its existing explicit plugin mount, without enabling global
-Claude settings.
+The npm package contains the skill and `docs/agent-setup.md`. Releases also carry
+the same skill in `hiq-cortex-organization-knowledge.zip` and the guide as
+`agent-setup.md`, both covered by `checksums.txt`. The existing release mirror
+publishes the guide at the stable URL above and under the versioned CDN directory.
+These are generated from the repository sources, not separately maintained
+copies. Remote agents still need installation and login in their own execution
+environment; they do not inherit a local CLI credential.
 
 `verify-flows` is for **dataset authoring, not querying**: it checks elementary-flow
 ids — and optionally the unit your row uses — against the catalog the calculation
