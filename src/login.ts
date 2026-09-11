@@ -1,7 +1,7 @@
 /**
  * `hiq-cortex login` — QR / device-flow sign-in, so a user can start querying
  * without registering for an API key first. Runs the deck OAuth device flow
- * (RFC 8628, scope `lca_data`): prints a QR + authorize link, the user approves
+ * (RFC 8628, scope `cortex_data`): prints a QR + authorize link, the user approves
  * on cortex.hiq.earth, and the flow returns their SSO accessToken. The visible
  * data scope equals that account's — including any commercial databases they
  * have entitlements for. `hiq-cortex logout` deletes the stored credential.
@@ -11,7 +11,7 @@
  */
 import { chmodSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 
 import { CortexClientError } from "./types.js";
 import { VERSION } from "./version.js";
@@ -21,7 +21,12 @@ const OAUTH_BASE = (
 ).replace(/\/+$/, "");
 
 export function credentialsPath(): string {
-  return join(homedir(), ".config", "hiq-cortex", "credentials.json");
+  return join(configHome() ?? join(homedir(), ".config"), "hiq-cortex", "credentials.json");
+}
+
+function configHome(): string | undefined {
+  const path = process.env.XDG_CONFIG_HOME?.trim();
+  return path && isAbsolute(path) ? path : undefined;
 }
 
 /** Where the Python client (`cortex.py login`) used to store its credential.
@@ -44,7 +49,9 @@ function tokenFrom(path: string): string {
 /** Token from a previous `hiq-cortex login`, falling back to the old Python
  *  client's credential file. "" when neither exists — config.ts's fallback. */
 export function readStoredToken(): string {
-  return tokenFrom(credentialsPath()) || tokenFrom(legacyCredentialsPath());
+  // An explicit config home selects an isolated identity store. Do not silently
+  // pick up another account from the legacy home directory when it is empty.
+  return tokenFrom(credentialsPath()) || (configHome() ? "" : tokenFrom(legacyCredentialsPath()));
 }
 
 interface DeviceAuthz {
@@ -69,8 +76,9 @@ export async function runLogin(json: boolean): Promise<void> {
     // HiQ Cortex CLI),agent_name 只是未收录时的回落。
     agent_id: "hiq-cortex-cli",
     agent_name: "HiQ Cortex CLI",
-    // 查询侧:授权页文案写的就是「查询 LCA 数据」,与本 CLI 的能力一致。
-    scope: "lca_data",
+    // 授权页同时说明 LCA / 组织知识读取，以及实际交付完整 SSO 登录态。
+    // 这不是技术上限定权限的 token；组织读取仍由服务端逐次鉴权。
+    scope: "cortex_data",
     client_skill: "hiq-cortex-cli",
     client_host: process.env.HIQ_CORTEX_CLIENT_HOST?.trim() || "cli",
     client_version: VERSION,
@@ -107,7 +115,7 @@ export async function runLogin(json: boolean): Promise<void> {
     }
     const tok = (await tr.json()) as { access_token: string; owner?: string; scope?: string };
     const p = credentialsPath();
-    mkdirSync(join(homedir(), ".config", "hiq-cortex"), { recursive: true });
+    mkdirSync(dirname(p), { recursive: true });
     writeFileSync(
       p,
       JSON.stringify(

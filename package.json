@@ -17,6 +17,7 @@
   "scripts": {
     "prebuild": "node scripts/stamp-version.mjs",
     "build": "tsc",
+    "pretest": "npm run build",
     "test": "tsx --test tests/*.test.ts",
     "build:bin": "./scripts/build-binaries.sh",
     "dev": "tsx src/cli.ts",
