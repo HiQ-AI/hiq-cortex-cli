@@ -53,7 +53,9 @@ jobs:
       # Trusted publishing needs npm ≥ 11.5.1; Node 22 still bundles npm 10.x.
       - run: npm install -g npm@latest
       - run: npm ci
-      - run: npm run build
+      - run: npm test
+        env:
+          XDG_CONFIG_HOME: ${{ runner.temp }}/hiq-cortex-test-config
       - name: Publish to npm (Trusted Publishing — no token)
         run: npm publish --access public --provenance
       - name: Pack tarball for the GitHub Release
