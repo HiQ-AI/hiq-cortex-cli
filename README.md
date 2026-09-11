@@ -120,6 +120,46 @@ The commands use the existing `HIQ_CORTEX_BASE` and REST routes
 `/api/cortex/organization`. They require the corresponding gateway and Wiki
 service release. The local HTTP/package tests do not establish live availability.
 
+### Use the same knowledge skill in an agent
+
+The CLI includes one [organization-knowledge skill](skills/organization-knowledge/SKILL.md).
+It guides account verification, search, revision-bound reading, links, sources,
+and citations. It contains no knowledge copy or credentials and does not grant
+permissions. Install the CLI separately, run `hiq-cortex login` yourself, and
+check `hiq-cortex doctor --org <organization-id> --json` before using it in an agent.
+The CLI must be visible in that host's terminal, or you can supply its full path.
+
+The npm package contains `skills/organization-knowledge/SKILL.md`. Every release
+also includes `hiq-cortex-organization-knowledge.zip`, built from that same file
+and covered by `checksums.txt`. Download the ZIP and checksums from the
+[GitHub release](https://github.com/HiQ-AI/hiq-cortex-cli/releases/tag/v0.5.0)
+or the versioned CDN URLs:
+
+```text
+https://download.hiq.earth/cli/hiq-cortex/releases/v0.5.0/hiq-cortex-organization-knowledge.zip
+https://download.hiq.earth/cli/hiq-cortex/releases/v0.5.0/checksums.txt
+```
+
+Use the host's native skill installation; there is no extra MCP server:
+
+| Host | Install the same skill | Use it |
+|---|---|---|
+| Cortex Cowork | In Skills Center, import the ZIP and enable the skill. The existing skill sync mounts it into the Cowork plugin. | Ask Cowork to use `organization-knowledge` for the selected organization. Cortex Desktop does not currently bundle this CLI. |
+| Codex local session | Extract `organization-knowledge/` into the project's `.agents/skills/`. | Start a session in that project and invoke `$organization-knowledge`. |
+| Claude Code local session | Extract `organization-knowledge/` into the project's `.claude/skills/`. | Start a session in that project and invoke `/organization-knowledge`. |
+
+Example request: "Use organization-knowledge to find the interface decisions for
+organization `<organization-id>`. Read the matching published page version and
+cite its sources." Loading the skill does not establish connectivity: each host
+still needs its native terminal, network access, and the CLI's own login. Remote
+or cloud sessions do not automatically inherit a local installation or login.
+
+These paths follow [Codex native skills](https://learn.chatgpt.com/docs/build-skills)
+and [Claude Code native skills](https://code.claude.com/docs/en/skills). Claude Code
+must allow the project settings source; `--safe-mode` disables skill discovery.
+Cortex Cowork uses its existing explicit plugin mount, without enabling global
+Claude settings.
+
 `verify-flows` is for **dataset authoring, not querying**: it checks elementary-flow
 ids — and optionally the unit your row uses — against the catalog the calculation
 actually reads for that source coordinate (`/api/relic/flows/verify`). Identity is

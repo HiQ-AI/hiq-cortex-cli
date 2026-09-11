@@ -56,5 +56,8 @@ done
 # Drop it before hashing, or it ends up on the Release as a stray 1.6MB asset.
 find "$OUT" -type f ! -name '*.tar.gz' ! -name '*.zip' -delete
 
+# The same skill ships in npm and as an importable archive for native agent hosts.
+(cd skills && zip -q "../$OUT/hiq-cortex-organization-knowledge.zip" organization-knowledge/SKILL.md)
+
 (cd "$OUT" && shasum -a 256 ./* > checksums.txt)
 echo && ls -lh "$OUT"

@@ -208,11 +208,17 @@ test("organization knowledge through CLI processes and a clean npm install", { t
     const packed = await exec(process.execPath, [npm, "pack", "--ignore-scripts", "--json", "--pack-destination", root], { cwd: repo, env, signal: packageTest.signal });
     const metadata = JSON.parse(packed.stdout)[0];
     assert.ok(metadata.files.some((f: { path: string }) => f.path === "dist/knowledge.js"));
+    assert.ok(metadata.files.some((f: { path: string }) => f.path === "skills/organization-knowledge/SKILL.md"));
     assert.ok(metadata.files.every((f: { path: string }) => !/(credentials|\.env)/u.test(f.path)));
     const install = join(root, "install");
     await mkdir(install);
     await writeFile(join(install, "package.json"), '{"name":"knowledge-install-fixture","private":true}');
     await exec(process.execPath, [npm, "install", "--ignore-scripts", "--omit=dev", "--no-audit", "--no-fund", join(root, metadata.filename)], { cwd: install, env, signal: packageTest.signal });
+    assert.equal(
+      await readFile(join(install, "node_modules/@hiq-ai/hiq-cortex-cli/skills/organization-knowledge/SKILL.md"), "utf8"),
+      await readFile(join(repo, "skills/organization-knowledge/SKILL.md"), "utf8"),
+      "the installed skill must match the release source",
+    );
     const manifestPath = join(install, "node_modules", "@hiq-ai", "hiq-cortex-cli", "package.json");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
     const installedCli = resolve(dirname(manifestPath), manifest.bin["hiq-cortex"]);
