@@ -1,7 +1,7 @@
 {
   "name": "@hiq-ai/hiq-cortex-cli",
   "version": "0.5.0",
-  "description": "CLI for HiQ Cortex — query LCA emission factors and read your organization’s published Wiki with versioned pages and traceable sources.",
+  "description": "CLI for HiQ Cortex — query real LCA emission factors and published EPDs with traceable data sources.",
   "type": "module",
   "bin": {
     "hiq-cortex": "./dist/cli.js"
@@ -11,12 +11,12 @@
   },
   "files": [
     "dist",
-    "skills",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "prebuild": "node scripts/stamp-version.mjs",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "prebuild": "npm run clean && node scripts/stamp-version.mjs",
     "build": "tsc",
     "pretest": "npm run build",
     "test": "tsx --test tests/*.test.ts",
@@ -30,9 +30,7 @@
     "emission-factor",
     "ecoinvent",
     "epd",
-    "cli",
-    "knowledge-base",
-    "wiki"
+    "cli"
   ],
   "license": "Apache-2.0",
   "repository": {

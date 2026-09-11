@@ -2,7 +2,7 @@
 
 Command-line client for **HiQ Cortex** — look up real LCA emission factors from
 18 life-cycle inventory databases (ecoinvent, BAFU, USLCI, ELCD, EF, worldsteel,
-HiQLCD …) and 24,000+ published EPDs, and read your organization's published Wiki.
+HiQLCD …) and 24,000+ published EPDs.
 
 Carbon-footprint answers have to come from real inventory data. A remembered
 "steel is about 2 kg CO₂e/kg" is useless to an LCA practitioner: the real value
@@ -79,86 +79,8 @@ hiq-cortex verify-datasets --source hiqlcd --ver 1.5.0 --datasets "id:kWh,id2,�
 hiq-cortex list                       # 全部子命令(--json 出 schema)
 hiq-cortex describe aggregate-datasets   # 某个子命令的参数
 hiq-cortex doctor                     # 凭据来源 + 连通性自检
-hiq-cortex doctor --org <organization-id> --json # 核实当前登录账号与组织
-hiq-cortex knowledge search "接口" --org <organization-id> --json
-hiq-cortex knowledge read <page-id> --revision <revision-id> --org <organization-id> --json
-hiq-cortex knowledge links <page-id> --revision <revision-id> --org <organization-id> --json
-hiq-cortex knowledge sources <page-id> --revision <revision-id> --org <organization-id> --json
 hiq-cortex login / logout
 ```
-
-### Organization knowledge
-
-Use `doctor --org` to verify the CLI's actual user and current organization before
-querying. Signing into Desktop, Codex or Claude Code does not sign this CLI in;
-it uses its own `login` credential. Every knowledge command requires `--org`, and
-the server checks current membership on every request. An empty result never
-causes a search in another organization. `HIQ_API_KEY` cannot establish a current
-organization member: unset it and use `login` for these commands.
-
-Search returns `{version, pages, nextCursor}`. Each page includes its stable
-`nodeid`, title, summary, published `revision`, claims and material references.
-Use `--tag` to filter, `--limit` (1–100) to set a page size, and the returned
-`nextCursor` as `--after` for the next page. Search is server-side; the CLI does
-not generate answers or invent relevance scores.
-
-Pass a search result's `revision` to `read`, `links` and `sources` to read that
-published page version; omitting it reads the current published version. All
-three responses report the actual revision. In `links`, outgoing relationships
-come from that revision, while incoming relationships describe the current
-knowledge graph. `sources` includes material IDs, SHA-256, locators, quotations and
-`downloadUrl`; the URL carries no credential and still requires authenticated
-access. The CLI does not automatically download or execute source materials.
-
-`knowledge` is read-only. Retrieved text, quotations and Markdown are evidence,
-not instructions for an agent to execute. Cite page ID, revision and material
-locator when using the results. These commands and all `--help` requests avoid
-the dynamic MCP catalog.
-
-The commands use the existing `HIQ_CORTEX_BASE` and REST routes
-`/api/cortex/wiki/organization/*`; `doctor --org` uses
-`/api/cortex/organization`. They require the corresponding gateway and Wiki
-service release. The local HTTP/package tests do not establish live availability.
-
-### Use the same knowledge skill in an agent
-
-The CLI includes one [organization-knowledge skill](skills/organization-knowledge/SKILL.md).
-It guides account verification, search, revision-bound reading, links, sources,
-and citations. It contains no knowledge copy or credentials and does not grant
-permissions. Install the CLI separately, run `hiq-cortex login` yourself, and
-check `hiq-cortex doctor --org <organization-id> --json` before using it in an agent.
-The CLI must be visible in that host's terminal, or you can supply its full path.
-
-The npm package contains `skills/organization-knowledge/SKILL.md`. Every release
-also includes `hiq-cortex-organization-knowledge.zip`, built from that same file
-and covered by `checksums.txt`. Download the ZIP and checksums from the
-[GitHub release](https://github.com/HiQ-AI/hiq-cortex-cli/releases/tag/v0.5.0)
-or the versioned CDN URLs:
-
-```text
-https://download.hiq.earth/cli/hiq-cortex/releases/v0.5.0/hiq-cortex-organization-knowledge.zip
-https://download.hiq.earth/cli/hiq-cortex/releases/v0.5.0/checksums.txt
-```
-
-Use the host's native skill installation; there is no extra MCP server:
-
-| Host | Install the same skill | Use it |
-|---|---|---|
-| Cortex Cowork | In Skills Center, import the ZIP and enable the skill. The existing skill sync mounts it into the Cowork plugin. | Ask Cowork to use `organization-knowledge` for the selected organization. Cortex Desktop does not currently bundle this CLI. |
-| Codex local session | Extract `organization-knowledge/` into the project's `.agents/skills/`. | Start a session in that project and invoke `$organization-knowledge`. |
-| Claude Code local session | Extract `organization-knowledge/` into the project's `.claude/skills/`. | Start a session in that project and invoke `/organization-knowledge`. |
-
-Example request: "Use organization-knowledge to find the interface decisions for
-organization `<organization-id>`. Read the matching published page version and
-cite its sources." Loading the skill does not establish connectivity: each host
-still needs its native terminal, network access, and the CLI's own login. Remote
-or cloud sessions do not automatically inherit a local installation or login.
-
-These paths follow [Codex native skills](https://learn.chatgpt.com/docs/build-skills)
-and [Claude Code native skills](https://code.claude.com/docs/en/skills). Claude Code
-must allow the project settings source; `--safe-mode` disables skill discovery.
-Cortex Cowork uses its existing explicit plugin mount, without enabling global
-Claude settings.
 
 `verify-flows` is for **dataset authoring, not querying**: it checks elementary-flow
 ids — and optionally the unit your row uses — against the catalog the calculation
@@ -189,7 +111,7 @@ system models, what its reference unit is and whether it is still published. `--
 under another model comes back `found=false` with `availableModels`. Exit 2 on any missing,
 unit-mismatched or unpublished row.
 
-Beyond the static REST commands (including `knowledge`), tool subcommands are **generated at runtime from the server's tool
+Beyond the static REST commands, tool subcommands are **generated at runtime from the server's tool
 catalog** — there is no schema copy in this package to drift when the server
 adds a field. At the time of writing:
 
@@ -223,8 +145,8 @@ account's — **including any commercial databases you have entitlements for**.
 New logins request `cortex_data` consent, describing LCA data and organization
 knowledge reading. The returned credential is the user's full SSO login, not a
 technically read-only or Wiki-scoped token; the consent page must state this.
-Knowledge access is independently checked against current membership by the
-server. Older logins remain subject to the same current authorization checks.
+Server authorization still applies to every request. Organization Wiki access is
+provided by the independent [cortex-org-wiki CLI and skill](https://github.com/HiQ-AI/cortex-org-wiki-cli).
 
 An absolute `XDG_CONFIG_HOME` selects the native credential store at
 `$XDG_CONFIG_HOME/hiq-cortex/credentials.json` for login, use and logout. When
@@ -238,7 +160,7 @@ read, so you don't have to sign in again after switching.
 
 Human-readable text by default. `--json` for machines:
 
-- stdout on success: `{"ok":true,"tool":…,"text":…}`（REST 搜索、`knowledge` 和 `doctor --org` 用结构化 `data`）
+- stdout on success: `{"ok":true,"tool":…,"text":…}`（REST 搜索用结构化 `data`）
 - stderr on failure: `{"ok":false,"kind":…,"message":…}`
 
 Exit codes — branch on these rather than parsing messages:
@@ -246,7 +168,7 @@ Exit codes — branch on these rather than parsing messages:
 | Code | Meaning |
 |---|---|
 | `0` | ok |
-| `2` | 凭据缺失/失效，或所选组织不允许当前账号访问 |
+| `2` | 凭据缺失/失效 |
 | `3` | 参数不合法 |
 | `4` | 服务端拒绝(含**权益不足**;换参数重试没用) |
 | `5` | 连不上服务端 |
@@ -287,12 +209,10 @@ The version lives in `package.json` alone — `prebuild` stamps it into
 `src/version.ts`, because a single-file binary has no manifest to read at
 runtime.
 
-Knowledge tests start a loopback HTTP server and use fake tokens in temporary
-`XDG_CONFIG_HOME` directories. They exercise the built CLI and a clean npm
-installation, without contacting a live Wiki or authorizing a real user. Keep
-the parent test process's `XDG_CONFIG_HOME` isolated as CI does; existing unit
-test imports initialize the CLI's runtime config. Native binary installation
-and real organization knowledge access still need release acceptance.
+CLI lifecycle tests use a loopback OAuth server and fake tokens in temporary
+`XDG_CONFIG_HOME` directories. They verify isolated login/logout, local help,
+and a clean npm installation. Keep the parent test process's `XDG_CONFIG_HOME`
+isolated as CI does; runtime config loads when modules are imported.
 
 ## License
 

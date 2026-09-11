@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * `hiq-cortex` — command-line client for HiQ Cortex data and organization Wiki.
+ * `hiq-cortex` — command-line client for HiQ Cortex LCA data.
  *
  * Subcommands come from two places:
- *   • static REST commands — data search/verification and organization Wiki
+ *   • static REST commands — data search and verification
  *   • tool commands — generated at runtime from the server's tool catalog,
  *     so there is no schema copy here to drift when the server adds a field.
  *
@@ -16,7 +16,6 @@ import yargs from "yargs";
 import { config, hasCredential } from "./config.js";
 import { registerToolCommands, toolAlias, type CatalogTool } from "./dynamicCommands.js";
 import { credentialsPath, runLogin, runLogout } from "./login.js";
-import { formatKnowledge, organizationIdentity, readKnowledge, type KnowledgeCommand } from "./knowledge.js";
 import { callTool, listTools } from "./mcpClient.js";
 import { RENDERERS } from "./format.js";
 import { formatSearch, runSearch } from "./search.js";
@@ -27,7 +26,7 @@ import { formatSearchFlows, parseQueriesArg, runSearchFlows } from "./searchFlow
 import { CortexClientError, EXIT, exitCodeFor } from "./types.js";
 import { VERSION } from "./version.js";
 
-const STATIC = new Set(["search", "search-datasets", "search-flows", "verify-datasets", "verify-flows", "knowledge", "list", "describe", "call", "doctor", "login", "logout", "version"]);
+const STATIC = new Set(["search", "search-datasets", "search-flows", "verify-datasets", "verify-flows", "list", "describe", "call", "doctor", "login", "logout", "version"]);
 
 function emit(json: boolean, tool: string, text: string): void {
   if (json) {
@@ -90,35 +89,6 @@ async function main(): Promise<void> {
     .scriptName("hiq-cortex")
     .usage("$0 <command> [options]")
     .option("json", { type: "boolean", default: false, describe: "机器可读输出" })
-    .command("knowledge", "读取所选组织的已发布知识", (y) => {
-      let group = y.option("org", { type: "string", demandOption: true, describe: "已选择的组织 ID（每次请求核实当前成员身份）" });
-      const commands: [KnowledgeCommand, string][] = [
-        ["search", "检索已发布页面，返回页 ID、revision、摘要与来源"],
-        ["read", "读取页面正文与引用"],
-        ["links", "读取指定版本的出站关系与当前入站关系"],
-        ["sources", "读取指定版本的材料来源与授权下载入口"],
-      ];
-      for (const [command, description] of commands) {
-        group = group.command(`${command} <value>`, description, (sub) => {
-          const base = sub.positional("value", { type: "string", describe: command === "search" ? "搜索内容" : "稳定页面 ID" });
-          return command === "search" ? base
-            .option("tag", { type: "string", describe: "限定标签" })
-            .option("after", { type: "string", describe: "上一页返回的 nextCursor" })
-            .option("limit", { type: "number", describe: "每页数量（1 到 100）" })
-            : base.option("revision", { type: "string", describe: "搜索返回的 revision；省略时取当前发布版" });
-        }, async (a) => {
-          try {
-            const data = await readKnowledge(command, String(a.value), {
-              org: String(a.org), revision: a.revision as string | undefined,
-              tag: a.tag as string | undefined, after: a.after as string | undefined, limit: a.limit as number | undefined,
-            });
-            if (a.json) process.stdout.write(JSON.stringify({ ok: true, tool: `knowledge ${command}`, data }) + "\n");
-            else process.stdout.write(formatKnowledge(command, data) + "\n");
-          } catch (error) { fail(Boolean(a.json), error); }
-        });
-      }
-      return group.demandCommand(1);
-    })
     .command(
       "search <query>",
       "材料 / BOM 行 → 候选数据集(20–40 秒,服务端要检索并逐条校验)",
@@ -271,15 +241,7 @@ async function main(): Promise<void> {
         }
       },
     )
-    .command("doctor", "凭据来源 + 连通性自检", (y) => y.option("org", { type: "string", describe: "核实当前登录账号与所选组织（不请求 MCP 工具目录）" }), async (a) => {
-      if (a.org !== undefined) {
-        try {
-          const data = await organizationIdentity({ org: a.org });
-          if (a.json) process.stdout.write(JSON.stringify({ ok: true, tool: "doctor", data }) + "\n");
-          else process.stdout.write(`账号: ${data.user_id}\n组织: ${data.organization_id}\n组织管理员: ${data.is_organization_admin ? "是" : "否"}\n`);
-        } catch (error) { fail(Boolean(a.json), error); }
-        return;
-      }
+    .command("doctor", "凭据来源 + 连通性自检", {}, async () => {
       const src = config.apiKey ? "HIQ_API_KEY(环境变量)" : config.ssoToken ? `login 凭据(${credentialsPath()})` : "无";
       const lines = [`版本:   ${VERSION}`, `API:    ${config.base}`, `凭据:   ${src}`];
       if (!hasCredential()) {
