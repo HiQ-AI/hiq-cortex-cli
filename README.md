@@ -106,8 +106,7 @@ Pass a search result's `revision` to `read`, `links` and `sources` to read that
 published page version; omitting it reads the current published version. All
 three responses report the actual revision. In `links`, outgoing relationships
 come from that revision, while incoming relationships describe the current
-knowledge graph. Current source withdrawals remain visible even when reading an
-old revision. `sources` includes material IDs, SHA-256, locators, quotations and
+knowledge graph. `sources` includes material IDs, SHA-256, locators, quotations and
 `downloadUrl`; the URL carries no credential and still requires authenticated
 access. The CLI does not automatically download or execute source materials.
 
