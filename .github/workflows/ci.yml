@@ -19,6 +19,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Test draft Release transfer isolation
+        if: runner.os == 'Linux'
+        run: |
+          python3 .github/scripts/test-release-handoff.py
+          python3 .github/scripts/test-release-publish.py
       - run: npm ci
       - run: npm test
         env:
