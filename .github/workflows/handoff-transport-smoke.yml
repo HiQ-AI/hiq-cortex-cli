@@ -1,0 +1,96 @@
+name: Handoff transport smoke (no product publication)
+on:
+  push:
+    branches: [chore/handoff-transport-smoke]
+# Reuse only the existing release transport permission. No OIDC or new credentials.
+permissions:
+  contents: write
+env:
+  SOURCE_SHA: 36e820bb881d7da91e6ba3a1aa22de2a06116bb0
+jobs:
+  binaries:
+    runs-on: macos-latest
+    outputs:
+      release_id: ${{ steps.handoff.outputs.release_id }}
+      attempt: ${{ steps.handoff.outputs.attempt }}
+      manifest_sha256: ${{ steps.handoff.outputs.manifest_sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Create synthetic transfer fixtures (not executable product binaries)
+        env:
+          KIND: binaries
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {expectedFiles} from './.github/scripts/release-contract.mjs';
+          fs.mkdirSync('smoke-input');
+          for (const name of Object.keys(expectedFiles(process.env.KIND))) {
+            fs.writeFileSync(`smoke-input/${name}`, `${process.env.SOURCE_SHA}\n${process.env.KIND}\n${name}\n`);
+          }
+          JS
+      - name: Upload fixtures using the reviewed default-branch transport
+        id: handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: GITHUB_SHA="$SOURCE_SHA" node .github/scripts/release-handoff.mjs upload binaries smoke-input
+  consume:
+    needs: [binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify authenticated download, source and anonymous denial (binaries)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KIND: binaries
+          TRANSFER_ID: ${{ needs.binaries.outputs.release_id }}
+          TRANSFER_ATTEMPT: ${{ needs.binaries.outputs.attempt }}
+          TRANSFER_MANIFEST_SHA256: ${{ needs.binaries.outputs.manifest_sha256 }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$TRANSFER_ATTEMPT" = 1
+          GITHUB_SHA="$SOURCE_SHA" node .github/scripts/release-handoff.mjs download binaries smoke-output-binaries
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          import {execFileSync} from 'node:child_process';
+          import {expectedFiles} from './.github/scripts/release-contract.mjs';
+          const e=process.env;
+          for (const name of Object.keys(expectedFiles(e.KIND))) {
+            assert.equal(fs.readFileSync(`smoke-output-${e.KIND}/${name}`, 'utf8'), `${e.SOURCE_SHA}\n${e.KIND}\n${name}\n`);
+          }
+          const base=`repos/${e.GITHUB_REPOSITORY}/releases/${e.TRANSFER_ID}`;
+          const release=JSON.parse(execFileSync('gh',['api',base]));
+          assert.equal(release.draft,true);
+          assert.equal(release.target_commitish,e.SOURCE_SHA);
+          const identity=JSON.parse(release.body);
+          assert.equal(identity.sha,e.SOURCE_SHA);
+          assert.equal(identity.run,e.GITHUB_RUN_ID);
+          assert.equal(identity.attempt,'1');
+          const assets=JSON.parse(execFileSync('gh',['api',`${base}/assets?per_page=100`]));
+          const denied=[];
+          for (const url of [`https://api.github.com/${base}`, ...assets.flatMap(a=>[a.url,a.browser_download_url])]) {
+            const status=execFileSync('curl',['-q','-sS','-o','/dev/null','-w','%{http_code}',url],{encoding:'utf8'});
+            assert.equal(status,'404',`Anonymous access was not denied: ${url}`);
+            denied.push({url,status});
+          }
+          console.log(JSON.stringify({sourceSHA:e.SOURCE_SHA,workflowSHA:e.GITHUB_SHA,run:e.GITHUB_RUN_ID,consumerAttempt:e.GITHUB_RUN_ATTEMPT,producerAttempt:e.TRANSFER_ATTEMPT,releaseId:e.TRANSFER_ID,manifestSHA256:e.TRANSFER_MANIFEST_SHA256,assetIds:assets.map(a=>a.id),anonymous:denied}));
+          JS
+      - name: Deliberate first-attempt checkpoint for consumer-only rerun
+        run: |
+          if [ "$GITHUB_RUN_ATTEMPT" = 1 ]; then
+            echo 'Transport passed; intentional failure to test consumer-only rerun with unchanged producer outputs.'
+            exit 1
+          fi
+          test "$GITHUB_RUN_ATTEMPT" = 2
+          echo 'Consumer-only rerun passed using original producer attempt 1.'
