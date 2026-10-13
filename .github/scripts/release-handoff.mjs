@@ -4,6 +4,7 @@ import {createHash} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import {expectedFiles, validateManifest} from './release-contract.mjs';
 const e=process.env, [mode,kind,dir]=process.argv.slice(2);
 assert(['npm-package','binaries'].includes(kind));
 const repo=e.GITHUB_REPOSITORY, base=`repos/${repo}/releases`;
@@ -19,10 +20,12 @@ if(mode==='upload'){
   const files=fs.readdirSync(dir).filter(n=>kind!=='npm-package'||n.endsWith('.tgz')).sort().map(name=>{
     validName(name); const p=path.join(dir,name); assert(fs.lstatSync(p).isFile());
     const b=fs.readFileSync(p);
-    return {name,bytes:b.length,sha256:hash(b),platform:name.match(/(?:darwin|linux|windows)-(?:arm64|x64)/)?.[0]||'portable'};
+    return {name,bytes:b.length,sha256:hash(b),platform:expectedFiles(kind)[name]};
   });
   assert(files.length>0);
-  const manifest=JSON.stringify({...identity,producerPlatform:`${e.RUNNER_OS}-${e.RUNNER_ARCH}`,files});
+  const record={...identity,producerPlatform:`${e.RUNNER_OS}-${e.RUNNER_ARCH}`,files};
+  validateManifest(record, kind);
+  const manifest=JSON.stringify(record);
   const p=path.join(e.RUNNER_TEMP,`${kind}-manifest.json`); fs.writeFileSync(p,manifest);
   // No --clobber, no publication, and no real tag creation.
   const release=api(base,'-X','POST','-f',`tag_name=${tag}`,'-f',`target_commitish=${e.GITHUB_SHA}`,'-f',`name=${tag}`,'-f',`body=${JSON.stringify(identity)}`,'-F','draft=true');
@@ -42,6 +45,8 @@ if(mode==='upload'){
   };
   const b=download(`${kind}-manifest.json`); assert.equal(hash(b),e.TRANSFER_MANIFEST_SHA256);
   const manifest=JSON.parse(b);
+  validateManifest(manifest, kind);
+  assert.deepEqual(assets.map(a=>a.name).sort(), [...Object.keys(expectedFiles(kind)), `${kind}-manifest.json`].sort(), 'Unexpected draft asset set');
   for(const [k,v] of Object.entries(identity)) assert.equal(manifest[k],v);
   assert(manifest.files.length>0); assert.equal(new Set(manifest.files.map(f=>f.name)).size,manifest.files.length);
   const tmp=fs.mkdtempSync(path.join(e.RUNNER_TEMP,`handoff-${kind}-`));

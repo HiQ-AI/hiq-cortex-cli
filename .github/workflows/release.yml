@@ -21,7 +21,7 @@ permissions:
   id-token: write   # npm Trusted Publishing (OIDC) + provenance
 
 # Transfer drafts are never published or overwritten. Keep them for failed-job
-# reruns; after abandoning reruns, maintainers may remove only ci-transfer-* drafts.
+# reruns; see .github/RELEASE-HANDOFF.md for the reviewed manual cleanup policy.
 # Producer attempt and manifest hash travel through job outputs, so a consumer-only
 # rerun still reads the original producer rather than a candidate from a newer run.
 jobs:
@@ -64,11 +64,6 @@ jobs:
       - run: npm test
         env:
           XDG_CONFIG_HOME: ${{ runner.temp }}/hiq-cortex-test-config
-      - name: Publish to npm (Trusted Publishing — no token)
-        run: npm publish --access public --provenance
-      - name: Pack tarball for the GitHub Release
-        id: pack
-        run: echo "tgz=$(npm pack --silent)" >> "$GITHUB_OUTPUT"
       - name: Verify and retrieve binaries from the producer draft
         env:
           GH_TOKEN: ${{ github.token }}
@@ -76,14 +71,17 @@ jobs:
           TRANSFER_ATTEMPT: ${{ needs.binaries.outputs.attempt }}
           TRANSFER_MANIFEST_SHA256: ${{ needs.binaries.outputs.manifest_sha256 }}
         run: node .github/scripts/release-handoff.mjs download binaries dist-bin
-      - name: Create / update GitHub Release
+      # Preserve the existing publish lifecycle build, then pack once for both channels.
+      - run: npm run prepublishOnly
+      - name: Pack the exact npm and GitHub Release candidate
+        id: pack
+        run: echo "tgz=$(npm pack --silent)" >> "$GITHUB_OUTPUT"
+      - name: Publish or verify npm (Trusted Publishing — no token)
+        run: node .github/scripts/npm-publish.mjs "${{ steps.pack.outputs.tgz }}"
+      - name: Create or verify immutable GitHub Release assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          assets=(dist-bin/* "${{ steps.pack.outputs.tgz }}")
-          gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
-            --title "$GITHUB_REF_NAME" --generate-notes --verify-tag \
-          || gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+        run: node .github/scripts/release-publish.mjs dist-bin/* "${{ steps.pack.outputs.tgz }}"
 
   # 国内直连 GitHub 不通,CDN 才是用户实际走的下载源 —— 跟着发布一起推,
   # 不能等人想起来手动跑,否则 install.sh 会一直装到旧版本。
