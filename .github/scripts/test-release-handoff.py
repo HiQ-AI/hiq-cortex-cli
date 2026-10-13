@@ -1,4 +1,6 @@
 import os,tempfile,pathlib,subprocess,json,shutil
+for workflow in pathlib.Path(__file__).resolve().parents[1].joinpath('workflows').glob('*.y*ml'):
+ assert not any(action in workflow.read_text() for action in ('actions/upload-artifact@', 'actions/download-artifact@')), f'Actions artifact storage reintroduced: {workflow}'
 root=pathlib.Path(tempfile.mkdtemp()); bindir=root/'bin';bindir.mkdir();db=root/'db';db.mkdir()
 mock='''#!/usr/bin/env python3
 import os,sys,json,pathlib,shutil
