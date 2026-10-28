@@ -1,18 +1,18 @@
 #!/usr/bin/env sh
-# hiq-cortex installer — macOS / Linux
+# lca-background-data installer — macOS / Linux
 #
 #   curl -fsSL https://raw.githubusercontent.com/HiQ-AI/hiq-cortex-cli/main/scripts/install.sh | sh
 #
 # Env:
-#   HIQ_CORTEX_VERSION   version to install (default: latest release)
-#   HIQ_CORTEX_INSTALL   install directory  (default: ~/.local/bin)
-#   HIQ_CORTEX_BASE_URL  download origin    (default: GitHub Releases; set this to a mirror)
+#   LCA_BACKGROUND_DATA_VERSION   version to install (default: latest release)
+#   LCA_BACKGROUND_DATA_INSTALL   install directory  (default: ~/.local/bin)
+#   LCA_BACKGROUND_DATA_BASE_URL  download origin    (default: GitHub Releases; set this to a mirror)
 #
 # Deliberately POSIX sh: this gets piped into whatever /bin/sh the box has.
 set -eu
 
 REPO=HiQ-AI/hiq-cortex-cli
-INSTALL_DIR="${HIQ_CORTEX_INSTALL:-$HOME/.local/bin}"
+INSTALL_DIR="${LCA_BACKGROUND_DATA_INSTALL:-$HOME/.local/bin}"
 
 # Default download origin. scripts/mirror-to-cdn.sh rewrites this one line in
 # the copy it serves from download.hiq.earth, so users behind the GFW get a
@@ -39,47 +39,45 @@ esac
 
 # No version lookup: GitHub resolves `releases/latest/download/<asset>` itself,
 # which keeps a first install off the anonymous API and its 60-req/hour limit.
-version="${HIQ_CORTEX_VERSION:-}"
-if [ -n "${HIQ_CORTEX_BASE_URL:-}" ]; then
-  base="$HIQ_CORTEX_BASE_URL"
+version="${LCA_BACKGROUND_DATA_VERSION:-}"
+if [ -n "${LCA_BACKGROUND_DATA_BASE_URL:-}" ]; then
+  base="$LCA_BACKGROUND_DATA_BASE_URL"
 elif [ -n "$version" ]; then
   base="https://github.com/$REPO/releases/download/v${version#v}"
 else
   base="$DEFAULT_BASE"
 fi
 
-archive="hiq-cortex-$os-$arch.tar.gz"
+archive="lca-background-data-$os-$arch.tar.gz"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-info "下载 hiq-cortex ${version:-latest} ($os-$arch)…"
+info "下载 lca-background-data ${version:-latest} ($os-$arch)…"
 curl -fsSL "$base/$archive" -o "$tmp/$archive" || die "下载失败: $base/$archive"
 
-# Checksums are advisory: verify when the file and a hashing tool are both
-# available, never block the install because the box lacks shasum.
-if curl -fsSL "$base/checksums.txt" -o "$tmp/sums.txt" 2>/dev/null; then
-  if command -v shasum >/dev/null 2>&1; then sha=$(shasum -a 256 "$tmp/$archive" | cut -d' ' -f1)
-  elif command -v sha256sum >/dev/null 2>&1; then sha=$(sha256sum "$tmp/$archive" | cut -d' ' -f1)
-  else sha=""; fi
-  if [ -n "$sha" ]; then
-    grep -q "$sha" "$tmp/sums.txt" || die "校验和不匹配,已中止安装"
-    info "校验和 OK"
-  fi
-fi
+curl -fsSL "$base/checksums.txt" -o "$tmp/sums.txt" || die "无法取得校验和"
+if command -v shasum >/dev/null 2>&1; then sha=$(shasum -a 256 "$tmp/$archive" | cut -d' ' -f1)
+elif command -v sha256sum >/dev/null 2>&1; then sha=$(sha256sum "$tmp/$archive" | cut -d' ' -f1)
+else die "需要 shasum 或 sha256sum 校验下载"; fi
+expected=$(while read -r digest name; do
+  if [ "${name#./}" = "$archive" ]; then printf '%s\n' "$digest"; fi
+done < "$tmp/sums.txt")
+[ "$sha" = "$expected" ] || die "校验和不匹配或条目不唯一,已中止安装"
+info "校验和 OK"
 
 tar xzf "$tmp/$archive" -C "$tmp" || die "解压失败"
 mkdir -p "$INSTALL_DIR"
-mv "$tmp/hiq-cortex" "$INSTALL_DIR/hiq-cortex"
-chmod +x "$INSTALL_DIR/hiq-cortex"
+mv "$tmp/lca-background-data" "$INSTALL_DIR/lca-background-data"
+chmod +x "$INSTALL_DIR/lca-background-data"
 
 # Downloads via curl carry no quarantine flag, but a binary that took a detour
 # through a browser or an archiver does — clear it so Gatekeeper stays quiet.
-[ "$os" = darwin ] && xattr -d com.apple.quarantine "$INSTALL_DIR/hiq-cortex" 2>/dev/null || true
+[ "$os" = darwin ] && xattr -d com.apple.quarantine "$INSTALL_DIR/lca-background-data" 2>/dev/null || true
 
 info ""
-info "已安装: $INSTALL_DIR/hiq-cortex"
+info "已安装: $INSTALL_DIR/lca-background-data"
 case ":$PATH:" in
-  *":$INSTALL_DIR:"*) info "下一步: hiq-cortex login" ;;
+  *":$INSTALL_DIR:"*) info "下一步: lca-background-data login" ;;
   *)
     info ""
     info "$INSTALL_DIR 不在 PATH 里,把这行加进 ~/.zshrc 或 ~/.bashrc:"

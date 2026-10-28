@@ -1,8 +1,14 @@
-# @hiq-ai/hiq-cortex-cli
+# LCA Background Data
 
-Command-line client for **HiQ Cortex** — look up real LCA emission factors from
-18 life-cycle inventory databases (ecoinvent, BAFU, USLCI, ELCD, EF, worldsteel,
-HiQLCD …) and 24,000+ published EPDs.
+`lca-background-data` searches LCA background databases and matches material,
+energy, transport, treatment and other inventory requirements to **process
+datasets**. Inputs can be a single description, inventory item or supported batch,
+not only a BOM. Databases such as ecoinvent or CLCD are background sources, not
+individual datasets; actual availability and numerical access come from the service.
+
+Published-EPD lookup tools can supply supplementary product evidence, but an EPD
+is not automatically an interchangeable background process dataset. This CLI does
+not perform EPD compliance review, certification or local LCA calculation.
 
 Carbon-footprint answers have to come from real inventory data. A remembered
 "steel is about 2 kg CO₂e/kg" is useless to an LCA practitioner: the real value
@@ -21,40 +27,38 @@ Node, no Python, no runtime of any kind.
 **macOS / Linux**
 
 ```bash
-curl -fsSL https://download.hiq.earth/cli/hiq-cortex/install.sh | sh
+curl -fsSL https://download.hiq.earth/cli/lca-background-data/install.sh | sh
 ```
 
 **Windows**
 
 ```powershell
-irm https://download.hiq.earth/cli/hiq-cortex/install.ps1 | iex
+irm https://download.hiq.earth/cli/lca-background-data/install.ps1 | iex
 ```
 
 Served from a CDN that is reachable from mainland China, where github.com and
 raw.githubusercontent.com are both blocked; GitHub Releases stays the source of
 truth and mirrors within a minute of each tag.
 
-Both installers detect the platform, verify the checksum, and drop `hiq-cortex`
-into a per-user directory (`~/.local/bin`, `%LOCALAPPDATA%\Programs\hiq-cortex`)
-— no sudo, no admin. `HIQ_CORTEX_VERSION`, `HIQ_CORTEX_INSTALL` and
-`HIQ_CORTEX_BASE_URL` (mirror origin) override the defaults.
+Both installers detect the platform, verify the checksum, and drop `lca-background-data`
+into a per-user directory (`~/.local/bin`, `%LOCALAPPDATA%\Programs\lca-background-data`)
+— no sudo, no admin. `LCA_BACKGROUND_DATA_VERSION`, `LCA_BACKGROUND_DATA_INSTALL` and
+`LCA_BACKGROUND_DATA_BASE_URL` (mirror origin) override the defaults.
 
 Prebuilt binaries for macOS (arm64 / x64), Linux (x64 / arm64) and Windows (x64)
 are also attached to every [release](https://github.com/HiQ-AI/hiq-cortex-cli/releases)
 directly, with a checksums file.
 
-**Where Node is already there** — agent hosts, CI, an existing project — the same
-CLI ships on npm, which skips the download step entirely:
-
-```bash
-npx @hiq-ai/hiq-cortex-cli doctor
-```
+This CLI identity is distributed as native binaries, not a new npm package.
+`package.json` is private build metadata; local package-install tests do not
+publish it. Existing old-name npm versions and v0.4.2 assets remain untouched.
+The new command, configuration and login store have no old-name fallback or alias.
 
 ## Quick start
 
 ```bash
-hiq-cortex login              # QR sign-in, no registration needed
-hiq-cortex search "304 不锈钢"
+lca-background-data login              # QR sign-in, no registration needed
+lca-background-data search "304 不锈钢"
 ```
 
 ```
@@ -71,15 +75,15 @@ and a **link** to the dataset page. A number without its basis is not usable.
 ## Commands
 
 ```bash
-hiq-cortex search "<你的原话>" [--sources BAFU,Ecoinvent]   # 材料 / BOM 行 → 候选数据集
-hiq-cortex search-datasets --source hiqlcd --ver 1.5.0 --model CUT_OFF --queries "电力,天然气" # 确定性目录候选(低延迟)
-hiq-cortex verify-flows --source hiqlcd --ver 1.5.0 --flows "id:kg,id2,…"   # 基本流 id(+单位)核验
-hiq-cortex search-flows --source hiqlcd --ver 1.5.0 --queries "二氧化碳,天然气"   # 基本流候选(BM25+向量,中英)
-hiq-cortex verify-datasets --source hiqlcd --ver 1.5.0 --datasets "id:kWh,id2,…"   # 上游数据集 id(+模型/单位/下架)核验
-hiq-cortex list                       # 全部子命令(--json 出 schema)
-hiq-cortex describe aggregate-datasets   # 某个子命令的参数
-hiq-cortex doctor                     # 凭据来源 + 连通性自检
-hiq-cortex login / logout
+lca-background-data search "<你的原话>" [--sources BAFU,Ecoinvent]   # 材料 / BOM 行 → 候选数据集
+lca-background-data search-datasets --source hiqlcd --ver 1.5.0 --model CUT_OFF --queries "电力,天然气" # 确定性目录候选(低延迟)
+lca-background-data verify-flows --source hiqlcd --ver 1.5.0 --flows "id:kg,id2,…"   # 基本流 id(+单位)核验
+lca-background-data search-flows --source hiqlcd --ver 1.5.0 --queries "二氧化碳,天然气"   # 基本流候选(BM25+向量,中英)
+lca-background-data verify-datasets --source hiqlcd --ver 1.5.0 --datasets "id:kWh,id2,…"   # 上游数据集 id(+模型/单位/下架)核验
+lca-background-data list                       # 全部子命令(--json 出 schema)
+lca-background-data describe aggregate-datasets   # 某个子命令的参数
+lca-background-data doctor                     # 凭据来源 + 连通性自检
+lca-background-data login / logout
 ```
 
 `verify-flows` is for **dataset authoring, not querying**: it checks elementary-flow
@@ -124,7 +128,7 @@ adds a field. At the time of writing:
 | `epd-search` | 检索已发布 EPD(EPDItaly / ECO Platform / EPD Norge) |
 | `epd-peer-benchmark` | EPD 同类分布与离群判定 |
 
-Escape hatch: `hiq-cortex call <native_tool_name> --args '<json>'`.
+Escape hatch: `lca-background-data call <native_tool_name> --args '<json>'`.
 
 `search` takes 20–40 seconds — the server searches the catalogs and verifies
 every hit. That is normal, not a hang; retrying in parallel only adds load.
@@ -134,8 +138,8 @@ every hit. That is normal, not a hang; retrying in parallel only adds load.
 Two ways, env wins when both are present:
 
 ```bash
-hiq-cortex login             # 浏览器点一次授权,凭据存 ~/.config/hiq-cortex/credentials.json (600)
-export HIQ_API_KEY=sk_xxx    # 服务端 / CI
+lca-background-data login             # 浏览器点一次授权,凭据存 ~/.config/lca-background-data/credentials.json (600)
+export LCA_BACKGROUND_DATA_API_KEY=sk_xxx    # 服务端 / CI
 ```
 
 Sign-in returns your own SSO credential, so the visible data scope equals your
@@ -149,12 +153,17 @@ Server authorization still applies to every request. Organization Wiki access is
 provided by the independent [cortex-org-wiki CLI and skill](https://github.com/HiQ-AI/cortex-org-wiki-cli).
 
 An absolute `XDG_CONFIG_HOME` selects the native credential store at
-`$XDG_CONFIG_HOME/hiq-cortex/credentials.json` for login, use and logout. When
-explicitly selected, an empty store does not fall back to another account's
-legacy credential. This also lets test environments use an isolated fake login.
+`$XDG_CONFIG_HOME/lca-background-data/credentials.json`; otherwise it is
+`~/.config/lca-background-data/credentials.json`. Login, use and logout touch only
+that store. Old client stores, including `~/.hiq/credentials.json`, are not read,
+imported, removed or migrated. Sign in again with the new command.
 
-Credentials from the older Python client (`~/.hiq/credentials.json`) are still
-read, so you don't have to sign in again after switching.
+Configuration uses only `LCA_BACKGROUND_DATA_API_KEY`, `LCA_BACKGROUND_DATA_BASE`,
+`LCA_BACKGROUND_DATA_OAUTH_URL` and `LCA_BACKGROUND_DATA_CLIENT_HOST`.
+Old-name environment variables are ignored. API and OAuth overrides are separate;
+never direct authenticated requests to an unauthorized endpoint. Device login
+identifies this client as `lca-background-data`; local fixture tests verify the
+request shape, not live consent-page registration or successful user login.
 
 ## Output contract
 
@@ -195,7 +204,7 @@ BAFU 在欧洲语境下是很好的默认选择，worldsteel 覆盖钢铁，USLC
 
 ```bash
 npm install
-npm run build       # tsc → dist/ (the npm channel)
+npm run build       # tsc → dist/ for source tests and development
 npm test            # build + real CLI/HTTP fixture + clean npm package install
 npm run dev         # tsx src/cli.ts
 npm run build:bin   # bun --compile → dist-bin/ (every platform, needs bun)
@@ -211,8 +220,34 @@ runtime.
 
 CLI lifecycle tests use a loopback OAuth server and fake tokens in temporary
 `XDG_CONFIG_HOME` directories. They verify isolated login/logout, local help,
-and a clean npm installation. Keep the parent test process's `XDG_CONFIG_HOME`
-isolated as CI does; runtime config loads when modules are imported.
+and a clean local package installation, without publishing to npm. They also
+check the renamed OAuth identity, ignored old credential stores/variables and API
+key precedence. Keep the parent test process's HOME and `XDG_CONFIG_HOME` isolated;
+runtime config loads when modules are imported.
+
+## Release contract
+
+New releases are binaries-only. The tag must exactly match the stable numeric
+package version and point to main ancestry. A macOS build produces five archives
+plus checksums; `scripts/check-native.mjs` checks every archive's digest, member and
+executable architecture, then runs version/help/missing-credential doctor for the
+native build-host target with an empty identity store. This is not five-platform
+execution or successful data access.
+
+The existing verified private draft handoff transfers those exact candidates;
+GitHub publication checks every asset and refuses conflicting reruns. npm
+publication, registry bootstrap and npm OIDC permissions are not prerequisites
+for this new identity. `npm-package` handoff and old npm publisher helpers remain
+historical generic utilities, not active release steps.
+
+The CDN mirror uses only the new CLI namespace, verifies checksums and creates
+objects conditionally. Identical objects are no-ops; different existing bytes,
+including latest/installers, are a hard stop rather than an implicit overwrite.
+A later release needs a separately reviewed channel-pointer update if those
+stable keys must change. Do not delete old public releases, CDN objects or draft
+candidates to force a rerun through. See [.github/RELEASE-HANDOFF.md](.github/RELEASE-HANDOFF.md)
+for transport acceptance and retention. Post-publication installer checks pin and
+compare the exact version on their runner platforms.
 
 ## License
 

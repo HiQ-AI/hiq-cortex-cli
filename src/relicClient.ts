@@ -16,8 +16,8 @@ export function requireCredential(extra = ""): void {
   if (hasCredential()) return;
   throw new CortexClientError(
     "config",
-    "No credential. Run `hiq-cortex login` (one browser click, no registration), " +
-      "or set HIQ_API_KEY=sk_… for server-side use." +
+    "No credential. Run `lca-background-data login` (one browser click, no registration), " +
+      "or set LCA_BACKGROUND_DATA_API_KEY=sk_… for server-side use." +
       (extra ? ` ${extra}` : ""),
   );
 }
@@ -38,7 +38,7 @@ export async function relicPost<T>(
   try {
     resp = await fetch(`${config.base}/api/relic/${path}`, {
       method: "POST",
-      headers: { ...authHeaders(), "Content-Type": "application/json", "User-Agent": `hiq-cortex-cli/${VERSION}` },
+      headers: { ...authHeaders(), "Content-Type": "application/json", "User-Agent": `lca-background-data/${VERSION}` },
       body: JSON.stringify(body),
       signal: ctl.signal,
     });
@@ -56,7 +56,7 @@ export async function relicPost<T>(
   if (resp.status === 401 || resp.status === 403) {
     throw new CortexClientError(
       "config",
-      `relic rejected this credential (HTTP ${resp.status}). Run \`hiq-cortex login\` again, or check HIQ_API_KEY. ${raw.slice(0, 200)}`,
+      `relic rejected this credential (HTTP ${resp.status}). Run \`lca-background-data login\` again, or check LCA_BACKGROUND_DATA_API_KEY. ${raw.slice(0, 200)}`,
     );
   }
   if (!resp.ok) {

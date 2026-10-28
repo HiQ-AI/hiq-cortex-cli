@@ -19,20 +19,39 @@ BUCKET="${DOWNLOAD_S3_BUCKET:-cortex-desktop-downloads}"
 DIST="${DOWNLOAD_CF_DIST_ID:-E9A45DLEU078N}"
 CDN=https://download.hiq.earth
 REPO=HiQ-AI/hiq-cortex-cli
-TOOL=hiq-cortex
+TOOL=lca-background-data
 
 cd "$(dirname "$0")/.."
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 
 echo "→ 拉 $TAG 的产物"
 gh release download "$TAG" --repo "$REPO" --dir "$tmp" \
-  --pattern 'hiq-cortex-*' --pattern 'checksums.txt'
+  --pattern 'lca-background-data-*' --pattern 'checksums.txt'
 
-echo "→ 传 S3"
+# Fail closed on checksum errors before creating any CDN object.
+if command -v sha256sum >/dev/null 2>&1; then
+  (cd "$tmp" && sha256sum -c checksums.txt)
+else
+  (cd "$tmp" && shasum -a 256 -c checksums.txt)
+fi
+
+put_new_or_identical() {
+  local file="$1" key="$2" cache="$3" type="$4"
+  if aws s3api head-object --bucket "$BUCKET" --key "$key" >"$tmp/head.json" 2>"$tmp/head.error"; then
+    aws s3api get-object --bucket "$BUCKET" --key "$key" "$tmp/existing-object" >/dev/null
+    cmp -s "$file" "$tmp/existing-object" || { printf 'Refusing to replace existing object: %s\n' "$key" >&2; exit 1; }
+    return
+  fi
+  grep -q '(404)' "$tmp/head.error" || { printf 'Cannot confirm object is absent: %s\n' "$key" >&2; exit 1; }
+  aws s3api put-object --bucket "$BUCKET" --key "$key" --body "$file" \
+    --if-none-match '*' --cache-control "$cache" --content-type "$type" >/dev/null
+}
+
+echo "→ 传 S3（只创建新对象或验证相同字节，不覆盖）"
 for f in "$tmp"/*; do
   name=$(basename "$f")
-  aws s3 cp "$f" "s3://$BUCKET/cli/$TOOL/latest/$name"       --cache-control 'public,max-age=300' --only-show-errors
-  aws s3 cp "$f" "s3://$BUCKET/cli/$TOOL/releases/$TAG/$name" --cache-control 'public,max-age=31536000,immutable' --only-show-errors
+  put_new_or_identical "$f" "cli/$TOOL/releases/$TAG/$name" 'public,max-age=31536000,immutable' 'application/octet-stream'
+  put_new_or_identical "$f" "cli/$TOOL/latest/$name" 'public,max-age=300' 'application/octet-stream'
 done
 
 # The installers served from the CDN default to the CDN — otherwise someone who
@@ -42,8 +61,8 @@ sed "s#else { \"https://github.com/\$Repo/releases/latest/download\" }#else { \"
 grep -q "^DEFAULT_BASE=\"$CDN/cli/$TOOL/latest\"$" "$tmp/install.sh" || { echo "install.sh 的 DEFAULT_BASE 没被改写,格式变了?"; exit 1; }
 grep -q "$CDN/cli/$TOOL/latest" "$tmp/install.ps1" || { echo "install.ps1 的默认 base 没被改写,格式变了?"; exit 1; }
 
-aws s3 cp "$tmp/install.sh"  "s3://$BUCKET/cli/$TOOL/install.sh"  --content-type 'text/x-shellscript' --cache-control 'public,max-age=300' --only-show-errors
-aws s3 cp "$tmp/install.ps1" "s3://$BUCKET/cli/$TOOL/install.ps1" --content-type 'text/plain'         --cache-control 'public,max-age=300' --only-show-errors
+put_new_or_identical "$tmp/install.sh" "cli/$TOOL/install.sh" 'public,max-age=300' 'text/x-shellscript'
+put_new_or_identical "$tmp/install.ps1" "cli/$TOOL/install.ps1" 'public,max-age=300' 'text/plain'
 
 echo "→ CloudFront 失效"
 aws cloudfront create-invalidation --distribution-id "$DIST" --paths "/cli/$TOOL/*" --query 'Invalidation.Id' --output text

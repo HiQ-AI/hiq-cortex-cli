@@ -1,15 +1,5 @@
-# Publish a release on a version tag.
-#
-# Four delivery channels, none of which asks a consumer for a token:
-#   1. Native binaries — single-file executables for macOS / Linux / Windows,
-#      cross-compiled by `bun build --compile`. No runtime on the machine.
-#   2. install.sh / install.ps1 — one-liners that fetch (1) from the Release.
-#   3. npm — Trusted Publishing (OIDC), so agent hosts that already have Node
-#      can `npx @hiq-ai/hiq-cortex-cli` with nothing installed. NO npm token and
-#      NO repo secret; npm generates provenance from the OIDC claim. One-time
-#      setup: publish 0.1.0 by hand, then add this repo+workflow as a Trusted
-#      Publisher in the package's npmjs.com settings.
-#   4. GitHub Release — carries the binaries, checksums and the npm tarball.
+# Distribute the renamed CLI as five self-contained binaries, not an npm package.
+# Keep the verified private draft handoff and immutable GitHub asset checks.
 name: release
 
 on:
@@ -18,7 +8,6 @@ on:
 
 permissions:
   contents: write   # create the GitHub Release
-  id-token: write   # npm Trusted Publishing (OIDC) + provenance
 
 # Transfer drafts are never published or overwritten. Keep them for failed-job
 # reruns; see .github/RELEASE-HANDOFF.md for the reviewed manual cleanup policy.
@@ -35,14 +24,18 @@ jobs:
       manifest_sha256: ${{ steps.handoff.outputs.manifest_sha256 }}
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: latest }
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
-      # npm, not `bun install`: the binaries and the npm package then resolve
-      # through the same package-lock.json and cannot drift apart.
+      - name: Verify exact version tag and main ancestry
+        run: node .github/scripts/verify-release.mjs
+      # Resolve the same locked dependencies used by source tests.
       - run: npm ci
       - run: ./scripts/build-binaries.sh
+      - name: Check five target architectures and isolated native diagnostics
+        run: node scripts/check-native.mjs dist-bin
       - name: Stage binaries in a private draft Release
         id: handoff
         env:
@@ -54,16 +47,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
-        with:
-          node-version: '22'   # ≥ 22.14, required by trusted publishing
-          registry-url: 'https://registry.npmjs.org'
-      # Trusted publishing needs npm ≥ 11.5.1; Node 22 still bundles npm 10.x.
-      - run: npm install -g npm@latest
+        with: { node-version: '22' }
+      - run: node .github/scripts/verify-release.mjs
       - run: npm ci
       - run: npm test
         env:
-          XDG_CONFIG_HOME: ${{ runner.temp }}/hiq-cortex-test-config
+          XDG_CONFIG_HOME: ${{ runner.temp }}/lca-background-data-test-config
       - name: Verify and retrieve binaries from the producer draft
         env:
           GH_TOKEN: ${{ github.token }}
@@ -71,17 +62,10 @@ jobs:
           TRANSFER_ATTEMPT: ${{ needs.binaries.outputs.attempt }}
           TRANSFER_MANIFEST_SHA256: ${{ needs.binaries.outputs.manifest_sha256 }}
         run: node .github/scripts/release-handoff.mjs download binaries dist-bin
-      # Preserve the existing publish lifecycle build, then pack once for both channels.
-      - run: npm run prepublishOnly
-      - name: Pack the exact npm and GitHub Release candidate
-        id: pack
-        run: echo "tgz=$(npm pack --silent)" >> "$GITHUB_OUTPUT"
-      - name: Publish or verify npm (Trusted Publishing — no token)
-        run: node .github/scripts/npm-publish.mjs "${{ steps.pack.outputs.tgz }}"
-      - name: Create or verify immutable GitHub Release assets
+      - name: Create or verify immutable GitHub binary Release assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node .github/scripts/release-publish.mjs dist-bin/* "${{ steps.pack.outputs.tgz }}"
+        run: node .github/scripts/release-publish.mjs dist-bin/*
 
   # 国内直连 GitHub 不通,CDN 才是用户实际走的下载源 —— 跟着发布一起推,
   # 不能等人想起来手动跑,否则 install.sh 会一直装到旧版本。
@@ -99,9 +83,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: ./scripts/mirror-to-cdn.sh "$GITHUB_REF_NAME"
 
-  # The installers are the path most users take, so they get exercised against
-  # the real Release — with no version pinned, so this covers the default
-  # `releases/latest/download` resolution too.
+  # Exercise CDN installers against this exact version, not a moving latest.
   verify-install:
     needs: mirror-cdn
     strategy:
@@ -112,14 +94,29 @@ jobs:
     steps:
       # 装的是 CDN 上那一份 —— 用户复制粘贴的就是这一行,连同镜像是否推上去
       # 一起验;跑仓里的副本只能证明脚本本身没写错。
-      - name: install.sh (CDN)
+      - name: install.sh (version-pinned CDN)
         if: runner.os != 'Windows'
+        env:
+          LCA_BACKGROUND_DATA_BASE_URL: https://download.hiq.earth/cli/lca-background-data/releases/${{ github.ref_name }}
         run: |
-          curl -fsSL https://download.hiq.earth/cli/hiq-cortex/install.sh | sh
-          "$HOME/.local/bin/hiq-cortex" version
-      - name: install.ps1 (CDN)
+          export LCA_BACKGROUND_DATA_INSTALL="$RUNNER_TEMP/lca-background-data-bin"
+          export HOME="$RUNNER_TEMP/lca-background-data-home"
+          export XDG_CONFIG_HOME="$HOME/.config"
+          mkdir -p "$HOME"
+          curl -fsSL https://download.hiq.earth/cli/lca-background-data/install.sh | sh
+          actual=$("$LCA_BACKGROUND_DATA_INSTALL/lca-background-data" version)
+          test "$actual" = "${GITHUB_REF_NAME#v}"
+      - name: install.ps1 (version-pinned CDN)
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          LCA_BACKGROUND_DATA_BASE_URL: https://download.hiq.earth/cli/lca-background-data/releases/${{ github.ref_name }}
         run: |
-          irm https://download.hiq.earth/cli/hiq-cortex/install.ps1 | iex
-          & "$env:LOCALAPPDATA\Programs\hiq-cortex\hiq-cortex.exe" version
+          $env:LCA_BACKGROUND_DATA_INSTALL = "$env:RUNNER_TEMP\lca-background-data-bin"
+          $env:USERPROFILE = "$env:RUNNER_TEMP\lca-background-data-home"
+          $env:HOME = $env:USERPROFILE
+          $env:XDG_CONFIG_HOME = "$env:HOME\.config"
+          New-Item -ItemType Directory -Path $env:HOME -Force | Out-Null
+          irm https://download.hiq.earth/cli/lca-background-data/install.ps1 | iex
+          $actual = & "$env:LCA_BACKGROUND_DATA_INSTALL\lca-background-data.exe" version
+          if ($actual.Trim() -ne $env:GITHUB_REF_NAME.TrimStart('v')) { throw "Unexpected native version: $actual" }

@@ -16,7 +16,7 @@ const RESULT: FlowSearchResult = {
 };
 
 test("search-flows preserves opaque identity from @file-shaped input", async () => {
-  const root = await mkdtemp(join(tmpdir(), "hiq-cortex-search-flows-"));
+  const root = await mkdtemp(join(tmpdir(), "lca-background-data-search-flows-"));
   const path = join(root, "queries.json");
   try {
     await writeFile(path, JSON.stringify([
@@ -33,7 +33,7 @@ test("search-flows preserves opaque identity from @file-shaped input", async () 
 });
 
 test("search-flows rejects unsafe identity metadata", async () => {
-  const root = await mkdtemp(join(tmpdir(), "hiq-cortex-search-flows-"));
+  const root = await mkdtemp(join(tmpdir(), "lca-background-data-search-flows-"));
   const path = join(root, "queries.json");
   try {
     await writeFile(path, JSON.stringify([{ query: "Styrene", identity: "row\nother" }]));

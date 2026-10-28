@@ -11,7 +11,7 @@ import {
 } from "../src/searchDatasets.js";
 
 test("search-datasets parses a correlated batch without leaking caller identity into filters", async () => {
-  const root = await mkdtemp(join(tmpdir(), "hiq-cortex-search-datasets-"));
+  const root = await mkdtemp(join(tmpdir(), "lca-background-data-search-datasets-"));
   const path = join(root, "queries.json");
   try {
     await writeFile(path, JSON.stringify([
@@ -28,7 +28,7 @@ test("search-datasets parses a correlated batch without leaking caller identity 
 });
 
 test("search-datasets validates filter arrays and identity", async () => {
-  const root = await mkdtemp(join(tmpdir(), "hiq-cortex-search-datasets-"));
+  const root = await mkdtemp(join(tmpdir(), "lca-background-data-search-datasets-"));
   const path = join(root, "queries.json");
   try {
     await writeFile(path, JSON.stringify([{ query: "电力", locations: "CN" }]));
