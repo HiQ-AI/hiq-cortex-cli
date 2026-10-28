@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `hiq-cortex` — command-line client for HiQ Cortex LCA data.
+ * `lca-background-data` — command-line client for LCA background process datasets.
  *
  * Subcommands come from two places:
  *   • static REST commands — data search and verification
@@ -86,12 +86,12 @@ async function main(): Promise<void> {
   }
 
   const cli = yargs(argvRaw)
-    .scriptName("hiq-cortex")
+    .scriptName("lca-background-data")
     .usage("$0 <command> [options]")
     .option("json", { type: "boolean", default: false, describe: "机器可读输出" })
     .command(
       "search <query>",
-      "材料 / BOM 行 → 候选数据集(20–40 秒,服务端要检索并逐条校验)",
+      "材料、清单项或 BOM 行 → 候选过程数据集(20–40 秒,服务端要检索并逐条校验)",
       (y) =>
         y
           .positional("query", { type: "string", describe: "用户的原话,不用先翻译成 LCA 术语" })
@@ -108,7 +108,7 @@ async function main(): Promise<void> {
     )
     .command(
       "search-datasets",
-      "直接检索数据集目录候选(确定性、低延迟)—— 数据集制作先走它,无候选再用 search 做语义研究",
+      "直接检索背景数据库的过程数据集候选(确定性、低延迟)—— 数据集制作先走它,无候选再用 search 做语义研究",
       (y) =>
         y
           .option("source", { type: "string", demandOption: true, describe: "源 code,如 hiqlcd / ecoinvent" })
@@ -207,7 +207,7 @@ async function main(): Promise<void> {
         if (a.json) {
           process.stdout.write(JSON.stringify({ ok: true, tools: t }) + "\n");
         } else {
-          const lines = ["search    材料 / BOM 行 → 候选数据集"];
+          const lines = ["search    材料、清单项或 BOM 行 → 候选过程数据集"];
           for (const x of t) lines.push(`${toolAlias(x.name).padEnd(24)}${(x.description ?? "").split("\n")[0]}`);
           process.stdout.write(lines.join("\n") + "\n");
         }
@@ -242,10 +242,10 @@ async function main(): Promise<void> {
       },
     )
     .command("doctor", "凭据来源 + 连通性自检", {}, async () => {
-      const src = config.apiKey ? "HIQ_API_KEY(环境变量)" : config.ssoToken ? `login 凭据(${credentialsPath()})` : "无";
+      const src = config.apiKey ? "LCA_BACKGROUND_DATA_API_KEY(环境变量)" : config.ssoToken ? `login 凭据(${credentialsPath()})` : "无";
       const lines = [`版本:   ${VERSION}`, `API:    ${config.base}`, `凭据:   ${src}`];
       if (!hasCredential()) {
-        lines.push("", "还没有凭据 —— 跑 `hiq-cortex login`(浏览器点一下,无需注册)。");
+        lines.push("", "还没有凭据 —— 跑 `lca-background-data login`(浏览器点一下,无需注册)。");
         process.stdout.write(lines.join("\n") + "\n");
         process.exit(EXIT.config);
       }

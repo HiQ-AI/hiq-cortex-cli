@@ -6,6 +6,7 @@ mock='''#!/usr/bin/env python3
 import os,sys,json,pathlib
 root=pathlib.Path(os.environ['MOCK_DB']);s=json.loads((root/'state').read_text());a=sys.argv[1:]
 with (root/'calls').open('a') as f:f.write(json.dumps([pathlib.Path(sys.argv[0]).name,*a])+'\\n')
+if pathlib.Path(sys.argv[0]).name=='git':sys.exit(s.get('git_status',0))
 if pathlib.Path(sys.argv[0]).name=='npm':
  if a[0]=='publish':sys.exit(s.get('publish_status',0))
  print(json.dumps(s.get('npm',{})));sys.exit(s.get('npm_status',0))
@@ -21,7 +22,7 @@ elif '/assets?' in endpoint:print(json.dumps([s['assets']]))
 elif '/releases?' in endpoint:print(json.dumps([[s['release']] if s.get('release') else []]))
 else:print(json.dumps(s['release']))
 '''
-for name in ['gh','npm']:
+for name in ['gh','npm','git']:
  p=bindir/name;p.write_text(mock);p.chmod(0o755)
 (root/'package.json').write_text(json.dumps({'name':'@hiq-ai/test','version':'1.0.0'}))
 file=root/'candidate.tgz';file.write_text('candidate')
@@ -49,8 +50,19 @@ if (scripts/'npm-publish.mjs').exists():
  assert sum(c[1:2]==['publish'] for c in calls)==1
  for state in [{'npm':{**dist,'shasum':'wrong'}},{'npm':{**dist,'integrity':'wrong'}},{'npm_status':1,'npm':{'error':{'code':'E503'}}},{'npm_status':1,'npm':{'error':{'code':'E401'}}}]:
   no_write(run('npm-publish.mjs',state,[str(file)],False))
- workflow=scripts.parent/'workflows/release.yml';text=workflow.read_text()
- assert text.index('download binaries dist-bin') < text.index('node .github/scripts/npm-publish.mjs')
+# Renamed releases are binaries-only; removing npm must not remove version/main gates.
+workflow=scripts.parent/'workflows/release.yml';text=workflow.read_text()
+assert text.index('download binaries dist-bin') < text.index('node .github/scripts/release-publish.mjs dist-bin/*')
+assert 'npm-publish.mjs' not in text and 'npm pack --' not in text and 'id-token:' not in text
+assert text.index('node scripts/check-native.mjs') < text.index('upload binaries dist-bin')
+assert 'node .github/scripts/verify-release.mjs' in text
+version=json.loads((scripts.parent.parent/'package.json').read_text())['version']
+for tag,sha,status,ok in [(f'v{version}','a'*40,0,True),('v0.0.0','a'*40,0,False),(f'v{version}','bad',0,False),(f'v{version}','a'*40,1,False)]:
+ (root/'state').write_text(json.dumps({'git_status':status}));(root/'calls').write_text('')
+ guard_env={**env,'GITHUB_REF_NAME':tag,'GITHUB_SHA':sha}
+ r=subprocess.run(['node',str(scripts/'verify-release.mjs')],env=guard_env,cwd=root,capture_output=True,text=True)
+ assert (r.returncode==0)==ok,r.stderr
+ no_write([json.loads(line) for line in (root/'calls').read_text().splitlines()])
 # Manual cleanup: default is read-only; namespace/state/age gate every deletion.
 def ago(days):return (datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=days)).isoformat()
 identity={'repository':'HiQ-AI/test','run':'123','attempt':'1','sha':'a'*40,'kind':'binaries'}

@@ -1,10 +1,10 @@
 {
-  "name": "@hiq-ai/hiq-cortex-cli",
+  "name": "@hiq-ai/lca-background-data",
   "version": "0.5.0",
-  "description": "CLI for HiQ Cortex — query real LCA emission factors and published EPDs with traceable data sources.",
+  "description": "Search LCA background databases and match inventory requirements to traceable process datasets.",
   "type": "module",
   "bin": {
-    "hiq-cortex": "./dist/cli.js"
+    "lca-background-data": "./dist/cli.js"
   },
   "engines": {
     "node": ">=20"
@@ -49,5 +49,6 @@
     "@types/yargs": "^17.0.33",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
-  }
+  },
+  "private": true
 }

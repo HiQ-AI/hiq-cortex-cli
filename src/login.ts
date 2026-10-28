@@ -1,12 +1,12 @@
 /**
- * `hiq-cortex login` — QR / device-flow sign-in, so a user can start querying
+ * `lca-background-data login` — QR / device-flow sign-in, so a user can start querying
  * without registering for an API key first. Runs the deck OAuth device flow
  * (RFC 8628, scope `cortex_data`): prints a QR + authorize link, the user approves
  * on cortex.hiq.earth, and the flow returns their SSO accessToken. The visible
  * data scope equals that account's — including any commercial databases they
- * have entitlements for. `hiq-cortex logout` deletes the stored credential.
+ * have entitlements for. `lca-background-data logout` deletes the stored credential.
  *
- * An API key (HIQ_API_KEY) still wins when both are present; that is the
+ * An API key (LCA_BACKGROUND_DATA_API_KEY) still wins when both are present; that is the
  * server-side / CI path.
  */
 import { chmodSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
@@ -17,23 +17,16 @@ import { CortexClientError } from "./types.js";
 import { VERSION } from "./version.js";
 
 const OAUTH_BASE = (
-  process.env.HIQ_CORTEX_OAUTH_URL?.trim() || "https://x.hiqlcd.com/api/cortex/oauth"
+  process.env.LCA_BACKGROUND_DATA_OAUTH_URL?.trim() || "https://x.hiqlcd.com/api/cortex/oauth"
 ).replace(/\/+$/, "");
 
 export function credentialsPath(): string {
-  return join(configHome() ?? join(homedir(), ".config"), "hiq-cortex", "credentials.json");
+  return join(configHome() ?? join(homedir(), ".config"), "lca-background-data", "credentials.json");
 }
 
 function configHome(): string | undefined {
   const path = process.env.XDG_CONFIG_HOME?.trim();
   return path && isAbsolute(path) ? path : undefined;
-}
-
-/** Where the Python client (`cortex.py login`) used to store its credential.
- *  Read-only fallback so people who signed in with the old script are not asked
- *  to scan again. We never write here. */
-function legacyCredentialsPath(): string {
-  return join(homedir(), ".hiq", "credentials.json");
 }
 
 function tokenFrom(path: string): string {
@@ -46,12 +39,9 @@ function tokenFrom(path: string): string {
   }
 }
 
-/** Token from a previous `hiq-cortex login`, falling back to the old Python
- *  client's credential file. "" when neither exists — config.ts's fallback. */
+/** Read only this CLI's selected identity store; never import another client's login. */
 export function readStoredToken(): string {
-  // An explicit config home selects an isolated identity store. Do not silently
-  // pick up another account from the legacy home directory when it is empty.
-  return tokenFrom(credentialsPath()) || (configHome() ? "" : tokenFrom(legacyCredentialsPath()));
+  return tokenFrom(credentialsPath());
 }
 
 interface DeviceAuthz {
@@ -73,14 +63,14 @@ async function postJson(url: string, body: unknown): Promise<Response> {
 export async function runLogin(json: boolean): Promise<void> {
   const resp = await postJson(`${OAUTH_BASE}/device_authorization`, {
     // agent_id 是稳定机器标识;授权页对已知 id 显示本地化名(HiQ 数据集编辑器 CLI /
-    // HiQ Cortex CLI),agent_name 只是未收录时的回落。
-    agent_id: "hiq-cortex-cli",
-    agent_name: "HiQ Cortex CLI",
+    // LCA Background Data CLI),agent_name 只是未收录时的回落。
+    agent_id: "lca-background-data",
+    agent_name: "LCA Background Data CLI",
     // 授权页同时说明 LCA / 组织知识读取，以及实际交付完整 SSO 登录态。
     // 这不是技术上限定权限的 token；组织读取仍由服务端逐次鉴权。
     scope: "cortex_data",
-    client_skill: "hiq-cortex-cli",
-    client_host: process.env.HIQ_CORTEX_CLIENT_HOST?.trim() || "cli",
+    client_skill: "lca-background-data",
+    client_host: process.env.LCA_BACKGROUND_DATA_CLIENT_HOST?.trim() || "cli",
     client_version: VERSION,
   });
   if (!resp.ok) {
@@ -132,7 +122,7 @@ export async function runLogin(json: boolean): Promise<void> {
     );
     return;
   }
-  throw new CortexClientError("upstream", "authorization timed out — run `hiq-cortex login` again.");
+  throw new CortexClientError("upstream", "authorization timed out — run `lca-background-data login` again.");
 }
 
 export function runLogout(json: boolean): void {

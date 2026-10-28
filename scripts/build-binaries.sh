@@ -27,7 +27,7 @@ for entry in "${TARGETS[@]}"; do
   name="${entry%%=*}"
   target="${entry#*=}"
   ext=""; [[ "$name" == windows-* ]] && ext=".exe"
-  bin="$OUT/hiq-cortex-$name$ext"
+  bin="$OUT/lca-background-data-$name$ext"
 
   echo "→ $name"
   bun build src/cli.ts --compile --minify --sourcemap=none \
@@ -40,14 +40,14 @@ for entry in "${TARGETS[@]}"; do
   fi
 
   # Archive per platform convention: zip on Windows, tar.gz elsewhere. The
-  # member name is bare `hiq-cortex` so install scripts need no per-OS casing.
-  staged="$OUT/hiq-cortex$ext"
+  # member name is bare `lca-background-data` so install scripts need no per-OS casing.
+  staged="$OUT/lca-background-data$ext"
   mv "$bin" "$staged"
   if [[ "$name" == windows-* ]]; then
-    (cd "$OUT" && zip -q "hiq-cortex-$name.zip" "hiq-cortex$ext")
+    (cd "$OUT" && zip -q "lca-background-data-$name.zip" "lca-background-data$ext")
   else
     chmod +x "$staged"
-    (cd "$OUT" && tar czf "hiq-cortex-$name.tar.gz" hiq-cortex)
+    (cd "$OUT" && tar czf "lca-background-data-$name.tar.gz" lca-background-data)
   fi
   rm -f "$staged"
 done
