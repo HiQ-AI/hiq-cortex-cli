@@ -19,13 +19,27 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Test draft Release transfer isolation
+      - name: Test CDN publication gates and historical transfer invariants
         if: runner.os == 'Linux'
         run: |
           python3 .github/scripts/test-release-handoff.py
           python3 .github/scripts/test-release-publish.py
           python3 .github/scripts/test-cdn-mirror.py
+      - name: Parse native installer scripts
+        if: runner.os == 'Linux'
+        run: |
+          sh -n scripts/install.sh
+          bash -n scripts/build-binaries.sh
+          bash -n scripts/publish-cdn.sh
+      - name: Parse PowerShell installer without executing it
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path scripts/install.ps1), [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count) { throw ($errors | Out-String) }
       - run: npm ci
       - run: npm test
         env:
-          XDG_CONFIG_HOME: ${{ runner.temp }}/lca-background-data-test-config
+          XDG_CONFIG_HOME: ${{ runner.temp }}/querying-lca-datasets-test-config

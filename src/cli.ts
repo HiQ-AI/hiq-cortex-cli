@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `lca-background-data` — command-line client for LCA background process datasets.
+ * `querying-lca-datasets` — command-line client for LCA background process datasets.
  *
  * Subcommands come from two places:
  *   • static REST commands — data search and verification
@@ -86,7 +86,7 @@ async function main(): Promise<void> {
   }
 
   const cli = yargs(argvRaw)
-    .scriptName("lca-background-data")
+    .scriptName("querying-lca-datasets")
     .usage("$0 <command> [options]")
     .option("json", { type: "boolean", default: false, describe: "机器可读输出" })
     .command(
@@ -242,10 +242,10 @@ async function main(): Promise<void> {
       },
     )
     .command("doctor", "凭据来源 + 连通性自检", {}, async () => {
-      const src = config.apiKey ? "LCA_BACKGROUND_DATA_API_KEY(环境变量)" : config.ssoToken ? `login 凭据(${credentialsPath()})` : "无";
+      const src = config.apiKey ? "QUERYING_LCA_DATASETS_API_KEY(环境变量)" : config.ssoToken ? `login 凭据(${credentialsPath()})` : "无";
       const lines = [`版本:   ${VERSION}`, `API:    ${config.base}`, `凭据:   ${src}`];
       if (!hasCredential()) {
-        lines.push("", "还没有凭据 —— 跑 `lca-background-data login`(浏览器点一下,无需注册)。");
+        lines.push("", "还没有凭据 —— 跑 `querying-lca-datasets login`(浏览器点一下,无需注册)。");
         process.stdout.write(lines.join("\n") + "\n");
         process.exit(EXIT.config);
       }

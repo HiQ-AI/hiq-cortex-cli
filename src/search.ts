@@ -62,8 +62,8 @@ export async function runSearch(query: string, sources?: string): Promise<Search
   if (!hasCredential()) {
     throw new CortexClientError(
       "config",
-      "No credential. Run `lca-background-data login` (one browser click, no registration), " +
-        "or set LCA_BACKGROUND_DATA_API_KEY=sk_… for server-side use.",
+      "No credential. Run `querying-lca-datasets login` (one browser click, no registration), " +
+        "or set QUERYING_LCA_DATASETS_API_KEY=sk_… for server-side use.",
     );
   }
   const form = new URLSearchParams({ query });
@@ -78,7 +78,7 @@ export async function runSearch(query: string, sources?: string): Promise<Search
       headers: {
         ...authHeaders(),
         "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": `lca-background-data/${VERSION}`,
+        "User-Agent": `querying-lca-datasets/${VERSION}`,
       },
       body: form.toString(),
       signal: ctl.signal,
@@ -101,7 +101,7 @@ export async function runSearch(query: string, sources?: string): Promise<Search
     throw new CortexClientError(
       "config",
       `the search endpoint rejected this credential (HTTP ${resp.status}). ` +
-        `Run \`lca-background-data login\` again, or check LCA_BACKGROUND_DATA_API_KEY. ${raw.slice(0, 200)}`,
+        `Run \`querying-lca-datasets login\` again, or check QUERYING_LCA_DATASETS_API_KEY. ${raw.slice(0, 200)}`,
     );
   }
   if (!resp.ok) {

@@ -1,60 +1,50 @@
 #!/usr/bin/env bash
-# Cross-compiles the single-file executables shipped on GitHub Releases.
-# One Bun toolchain builds every target, so this runs the same on a laptop and in CI.
+# Compile five self-contained binaries into Host-compatible native archives.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 OUT=dist-bin
 rm -rf "$OUT" && mkdir -p "$OUT"
-
 bun scripts/stamp-version.mjs
+VERSION=$(node -p "JSON.parse(require('node:fs').readFileSync('package.json')).version")
+TOOL=querying-lca-datasets
+STAGING=$(mktemp -d)
+trap 'rm -rf "$STAGING"' EXIT
 
-# Archive names carry no version: that lets the installers fetch
-# `releases/latest/download/<name>` straight off GitHub — no version lookup, so
-# no anonymous-API rate limit to hit on someone's first install.
-#
-# name=bun-target. `-baseline` targets omit AVX2 so the binaries also run on
-# pre-2013 x64 hardware and inside VMs that mask CPU features.
+# Baseline x64 targets do not require AVX2.
 TARGETS=(
   "darwin-arm64=bun-darwin-arm64"
   "darwin-x64=bun-darwin-x64-baseline"
   "linux-x64=bun-linux-x64-baseline"
   "linux-arm64=bun-linux-arm64"
-  "windows-x64=bun-windows-x64-baseline"
+  "win32-x64=bun-windows-x64-baseline"
 )
 
 for entry in "${TARGETS[@]}"; do
-  name="${entry%%=*}"
+  platform="${entry%%=*}"
   target="${entry#*=}"
-  ext=""; [[ "$name" == windows-* ]] && ext=".exe"
-  bin="$OUT/lca-background-data-$name$ext"
-
-  echo "→ $name"
-  bun build src/cli.ts --compile --minify --sourcemap=none \
-    --target="$target" --outfile "$bin"
-
-  # Bun ad-hoc signs its Darwin output, but a re-sign here is what guarantees
-  # the signature survives; unsigned arm64 Mach-O is killed on launch.
-  if [[ "$name" == darwin-* && "$(uname -s)" == Darwin ]]; then
+  ext=""; [[ "$platform" == win32-* ]] && ext=".exe"
+  root="$STAGING/$TOOL-$VERSION"
+  mkdir -p "$root/bin"
+  bin="$root/bin/$TOOL$ext"
+  printf 'Building %s\n' "$platform"
+  bun build src/cli.ts --compile --minify --sourcemap=none --target="$target" --outfile "$bin"
+  if [[ "$platform" == darwin-* && "$(uname -s)" == Darwin ]]; then
     codesign --force --sign - "$bin"
   fi
-
-  # Archive per platform convention: zip on Windows, tar.gz elsewhere. The
-  # member name is bare `lca-background-data` so install scripts need no per-OS casing.
-  staged="$OUT/lca-background-data$ext"
-  mv "$bin" "$staged"
-  if [[ "$name" == windows-* ]]; then
-    (cd "$OUT" && zip -q "lca-background-data-$name.zip" "lca-background-data$ext")
+  chmod +x "$bin"
+  rm -f "$bin.map"
+  node scripts/write-native-manifest.mjs "$root" "$platform"
+  chmod 755 "$root" "$root/bin"
+  chmod 644 "$root/manifest.json"
+  TZ=UTC touch -t 197001010000.00 "$root" "$root/bin" "$root/manifest.json" "$bin"
+  if [[ "$(uname -s)" == Darwin ]]; then
+    COPYFILE_DISABLE=1 tar --format ustar --uid 0 --gid 0 --uname root --gname root -cf - -C "$STAGING" "$TOOL-$VERSION" | gzip -n > "$OUT/$TOOL-$platform.tar.gz"
   else
-    chmod +x "$staged"
-    (cd "$OUT" && tar czf "lca-background-data-$name.tar.gz" lca-background-data)
+    tar --format ustar --owner=0 --group=0 --numeric-owner -cf - -C "$STAGING" "$TOOL-$VERSION" | gzip -n > "$OUT/$TOOL-$platform.tar.gz"
   fi
-  rm -f "$staged"
+  rm -rf "$root"
 done
 
-# Bun ≥1.3 writes a .map next to the executable whatever --sourcemap says.
-# Drop it before hashing, or it ends up on the Release as a stray 1.6MB asset.
-find "$OUT" -type f ! -name '*.tar.gz' ! -name '*.zip' -delete
-
-(cd "$OUT" && shasum -a 256 ./* > checksums.txt)
-echo && ls -lh "$OUT"
+(cd "$OUT" && shasum -a 256 ./*.tar.gz > checksums.txt)
+ls -lh "$OUT"

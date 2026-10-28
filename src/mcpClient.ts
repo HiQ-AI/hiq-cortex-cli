@@ -26,8 +26,8 @@ function requireCredential(): void {
   if (!hasCredential()) {
     throw new CortexClientError(
       "config",
-      "No credential. Run `lca-background-data login` (one browser click, no registration), " +
-        "or set LCA_BACKGROUND_DATA_API_KEY=sk_… for server-side use.",
+      "No credential. Run `querying-lca-datasets login` (one browser click, no registration), " +
+        "or set QUERYING_LCA_DATASETS_API_KEY=sk_… for server-side use.",
     );
   }
 }
@@ -54,7 +54,7 @@ function isAuthRejection(err: unknown, msg: string): boolean {
 
 async function connect(): Promise<Client> {
   const client = new Client(
-    { name: "lca-background-data", version: VERSION },
+    { name: "querying-lca-datasets", version: VERSION },
     { capabilities: {} },
   );
   const transport = new StreamableHTTPClientTransport(new URL(config.mcpUrl), {
@@ -62,7 +62,7 @@ async function connect(): Promise<Client> {
       headers: {
         ...authHeaders(),
         // Some CDNs reject default HTTP-client UAs (observed: error 1010).
-        "User-Agent": `lca-background-data/${VERSION}`,
+        "User-Agent": `querying-lca-datasets/${VERSION}`,
       },
     },
   });
@@ -75,8 +75,8 @@ async function connect(): Promise<Client> {
     if (isAuthRejection(err, msg)) {
       throw new CortexClientError(
         "config",
-        `the Cortex API rejected this credential (401/403). Run \`lca-background-data login\` again, ` +
-          `or check LCA_BACKGROUND_DATA_API_KEY. Server said: ${msg}`,
+        `the Cortex API rejected this credential (401/403). Run \`querying-lca-datasets login\` again, ` +
+          `or check QUERYING_LCA_DATASETS_API_KEY. Server said: ${msg}`,
       );
     }
     throw new CortexClientError("transport", `cannot reach the Cortex API (${config.mcpUrl}): ${msg}`);

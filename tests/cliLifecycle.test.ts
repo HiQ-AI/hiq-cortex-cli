@@ -12,10 +12,10 @@ const exec = promisify(execFile);
 const repo = fileURLToPath(new URL("..", import.meta.url));
 test("CLI identity, login lifecycle and local package integrity", { timeout: 120_000 }, async t => {
   const expectedVersion = JSON.parse(await readFile(join(repo, "package.json"), "utf8")).version;
-  const root = await mkdtemp(join(tmpdir(), "lca-background-data-lifecycle-"));
+  const root = await mkdtemp(join(tmpdir(), "querying-lca-datasets-lifecycle-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const configDir = join(root, "config");
-  const credentials = join(configDir, "lca-background-data", "credentials.json");
+  const credentials = join(configDir, "querying-lca-datasets", "credentials.json");
   await mkdir(dirname(credentials), { recursive: true });
   await writeFile(credentials, JSON.stringify({ token: "fixture-user-token" }), { mode: 0o600 });
   const requests: { path: string; query: Record<string, string>; auth: string | undefined; apiKey: string | undefined }[] = [];
@@ -41,7 +41,7 @@ test("CLI identity, login lifecycle and local package integrity", { timeout: 120
   assert.ok(address && typeof address !== "string");
   const base = `http://127.0.0.1:${address.port}`;
   // Keep only process/runtime necessities. Never inherit real HIQ credentials.
-  const env = { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, HOME: root, USERPROFILE: root, XDG_CONFIG_HOME: configDir, LCA_BACKGROUND_DATA_BASE: base, LCA_BACKGROUND_DATA_OAUTH_URL: `${base}/api/cortex/oauth` };
+  const env = { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, HOME: root, USERPROFILE: root, XDG_CONFIG_HOME: configDir, QUERYING_LCA_DATASETS_BASE: base, QUERYING_LCA_DATASETS_OAUTH_URL: `${base}/api/cortex/oauth` };
   const cli = join(repo, "dist", "cli.js");
   async function run(args: string[], entry = cli, overrides: Record<string, string> = {}) {
     try {
@@ -57,22 +57,23 @@ test("CLI identity, login lifecycle and local package integrity", { timeout: 120
     for (const args of [["--help"], ["search", "--help"], ["doctor", "--help"]]) {
       const result = await run(args);
       assert.equal(result.code, 0, result.stderr);
-      assert.match(result.stdout, /lca-background-data/);
+      assert.match(result.stdout, /querying-lca-datasets/);
       assert.doesNotMatch(result.stdout, /knowledge|--org/u);
     }
     assert.equal(requests.length, 0);
   });
   await t.test("new identity ignores old credential stores and environment names", async () => {
-    for (const dir of [join(root, ".hiq"), join(root, ".config", "hiq-cortex")]) {
+    for (const dir of [join(root, ".hiq"), join(root, ".config", "hiq-cortex"), join(root, ".config", "lca-background-data")]) {
       await mkdir(dir, { recursive: true });
       await writeFile(join(dir, "credentials.json"), JSON.stringify({ token: "fixture-old-identity-token" }));
     }
     const before = requests.length;
     const result = await run(["doctor"], cli, {
       XDG_CONFIG_HOME: "", HIQ_API_KEY: "fixture-old-api-key", HIQ_CORTEX_BASE: "http://127.0.0.1:1",
+      LCA_BACKGROUND_DATA_API_KEY: "fixture-old-api-key", LCA_BACKGROUND_DATA_BASE: "http://127.0.0.1:1",
     });
     assert.equal(result.code, 2, result.stderr);
-    assert.match(result.stdout, /lca-background-data login/);
+    assert.match(result.stdout, /querying-lca-datasets login/);
     assert.doesNotMatch(result.stdout + result.stderr, /fixture-old|127\.0\.0\.1:1|hiq-cortex/);
     assert.equal(requests.length, before, "missing credentials must not contact a service");
     const version = await run(["version"]);
@@ -81,7 +82,7 @@ test("CLI identity, login lifecycle and local package integrity", { timeout: 120
   });
   await t.test("new API key overrides only the new native identity store", async () => {
     const result = await run(["search-datasets", "--source", "hiqlcd", "--ver", "1.5.0", "--queries", "fixture"], cli, {
-      LCA_BACKGROUND_DATA_API_KEY: "fixture-new-api-key", HIQ_API_KEY: "fixture-old-api-key",
+      QUERYING_LCA_DATASETS_API_KEY: "fixture-new-api-key", HIQ_API_KEY: "fixture-old-api-key",
     });
     assert.notEqual(result.code, 0, "fixture endpoint deliberately rejects the query");
     assert.equal(requests.at(-1)?.apiKey, "fixture-new-api-key");
@@ -92,10 +93,10 @@ test("CLI identity, login lifecycle and local package integrity", { timeout: 120
     const result = await run(["login", "--json"], cli, { XDG_CONFIG_HOME: isolated });
     assert.equal(result.code, 0, result.stderr);
     assert.deepEqual(oauthRequest, {
-      agent_id: "lca-background-data", agent_name: "LCA Background Data CLI", scope: "cortex_data",
-      client_skill: "lca-background-data", client_host: "cli", client_version: expectedVersion,
+      agent_id: "querying-lca-datasets", agent_name: "Querying LCA Datasets", scope: "cortex_data",
+      client_skill: "querying-lca-datasets", client_host: "cli", client_version: expectedVersion,
     });
-    const path = join(isolated, "lca-background-data", "credentials.json");
+    const path = join(isolated, "querying-lca-datasets", "credentials.json");
     assert.equal(JSON.parse(result.stdout).credentials, path);
     assert.equal(JSON.parse(await readFile(path, "utf8")).token, "fixture-device-token");
     if (process.platform !== "win32") assert.equal((await stat(path)).mode & 0o777, 0o600);
@@ -119,12 +120,12 @@ test("CLI identity, login lifecycle and local package integrity", { timeout: 120
     await mkdir(install);
     await writeFile(join(install, "package.json"), '{"name":"cortex-install-fixture","private":true}');
     await exec(process.execPath, [npm, "install", "--ignore-scripts", "--omit=dev", "--no-audit", "--no-fund", join(root, metadata.filename)], { cwd: install, env, signal: packageTest.signal });
-    const manifestPath = join(install, "node_modules", "@hiq-ai", "lca-background-data", "package.json");
+    const manifestPath = join(install, "node_modules", "querying-lca-datasets", "package.json");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-    assert.equal(manifest.name, "@hiq-ai/lca-background-data");
+    assert.equal(manifest.name, "querying-lca-datasets");
     assert.equal(manifest.private, true);
-    assert.deepEqual(Object.keys(manifest.bin), ["lca-background-data"]);
-    const installedCli = resolve(dirname(manifestPath), manifest.bin["lca-background-data"]);
+    assert.deepEqual(Object.keys(manifest.bin), ["querying-lca-datasets"]);
+    const installedCli = resolve(dirname(manifestPath), manifest.bin["querying-lca-datasets"]);
     const help = await run(["--help"], installedCli);
     assert.equal(help.code, 0, help.stderr);
     assert.match(help.stdout, /search-datasets|verify-flows/u);

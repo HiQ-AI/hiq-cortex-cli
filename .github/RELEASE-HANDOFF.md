@@ -1,6 +1,11 @@
-# Release handoff operations
+# Historical release handoff operations
 
-Release jobs stage candidates in unpublished `ci-transfer-RUN-ATTEMPT-KIND`
+Querying LCA Datasets now builds and publishes directly to versioned CDN objects.
+Its active workflow does not use GitHub releases, tags or this transfer. The
+helpers and mock tests remain historical tooling; this document does not authorize
+cleanup of old evidence or distribution through the retired path.
+
+Previously, release jobs staged candidates in unpublished `ci-transfer-RUN-ATTEMPT-KIND`
 draft Releases. Consumers use the producer's job outputs (including the manifest
 SHA-256), so a failed-job rerun continues to read the original producer attempt.
 The transfer never publishes a draft or replaces an asset. Existing Actions

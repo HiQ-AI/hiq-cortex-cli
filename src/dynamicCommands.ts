@@ -1,7 +1,7 @@
 /**
  * Per-tool subcommands, generated at runtime from the gateway's tool catalog
  * (remote tools/list + local tools) — no client-side schema duplication to
- * drift. `aggregate_datasets` becomes `lca-background-data aggregate-datasets` with real flags
+ * drift. `aggregate_datasets` becomes `querying-lca-datasets aggregate-datasets` with real flags
  * parsed from its input JSON Schema: required props become required options,
  * enums become choices, object/array props accept JSON values.
  */
@@ -32,7 +32,7 @@ export interface PropSpec {
 }
 
 /** Flag help gets the schema description's first sentence, capped — the full
- *  text stays available via `lca-background-data describe <tool>`. */
+ *  text stays available via `querying-lca-datasets describe <tool>`. */
 function firstSentence(desc: string | undefined, max = 120): string {
   if (!desc) return "";
   const m = /^(.{1,120}?[.。](?:\s|$))/.exec(desc);

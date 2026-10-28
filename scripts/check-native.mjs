@@ -10,26 +10,37 @@ const dir = resolve(process.argv[2] || 'dist-bin');
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url)));
 const name = Object.keys(pkg.bin)[0];
 const expected = expectedFiles('binaries');
+const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 assert.deepEqual(readdirSync(dir).sort(), Object.keys(expected).sort(), 'Unexpected native output set');
-const sums = new Map(readFileSync(join(dir, 'checksums.txt'), 'utf8').trim().split('\n').map(line => {
+const lines = readFileSync(join(dir, 'checksums.txt'), 'utf8').trim().split('\n');
+const sums = new Map(lines.map(line => {
   const match = line.match(/^([a-f0-9]{64})\s+\.\/(\S+)$/);
   assert(match, 'Invalid checksum record');
   return [match[2], match[1]];
 }));
-assert.deepEqual([...sums.keys()].sort(), Object.keys(expected).filter(file => file !== 'checksums.txt').sort(), 'Unexpected checksum set');
+assert.equal(lines.length, sums.size, 'Duplicate checksum record');
+assert.deepEqual([...sums.keys()].sort(), Object.keys(expected).filter(file => file !== 'checksums.txt').sort());
 const home = mkdtempSync(join(tmpdir(), `${name}-native-check-`));
 let executed = false;
 try {
   for (const [filename, platform] of Object.entries(expected)) {
     if (filename === 'checksums.txt') continue;
     const archive = join(dir, filename);
-    assert.equal(createHash('sha256').update(readFileSync(archive)).digest('hex'), sums.get(filename));
-    const member = name + (platform === 'windows-x64' ? '.exe' : '');
-    const zipped = filename.endsWith('.zip');
-    const command = zipped ? 'unzip' : 'tar';
-    const listing = execFileSync(command, zipped ? ['-Z1', archive] : ['-tzf', archive], {encoding: 'utf8'}).trim().split('\n');
-    assert.deepEqual(listing, [member], `Unexpected archive members: ${filename}`);
-    const binary = execFileSync(command, zipped ? ['-p', archive, member] : ['-xOzf', archive, member], {maxBuffer: 256 * 1024 * 1024});
+    assert.equal(hash(readFileSync(archive)), sums.get(filename));
+    const root = `${name}-${pkg.version}`;
+    const member = `bin/${name}` + (platform === 'win32-x64' ? '.exe' : '');
+    const listing = execFileSync('tar', ['-tzf', archive], {encoding: 'utf8'}).trim().split('\n').map(path => path.replace(/\/$/, ''));
+    assert.deepEqual(listing.sort(), [root, `${root}/bin`, `${root}/${member}`, `${root}/manifest.json`].sort());
+    const types = execFileSync('tar', ['-tvzf', archive], {encoding: 'utf8'}).trim().split('\n');
+    assert(types.every(line => /^[d-]/.test(line)), 'Only ordinary directories/files are allowed');
+    const manifest = JSON.parse(execFileSync('tar', ['-xOzf', archive, `${root}/manifest.json`], {encoding: 'utf8'}));
+    assert.equal(manifest.name, name);
+    assert.equal(manifest.version, pkg.version);
+    assert.equal(manifest.platform, platform);
+    assert.equal(manifest.executable, `bin/${name}`);
+    if (process.env.GITHUB_SHA) assert.equal(manifest.sourceCommit, process.env.GITHUB_SHA);
+    const binary = execFileSync('tar', ['-xOzf', archive, `${root}/${member}`], {maxBuffer: 256 * 1024 * 1024});
+    assert.equal(hash(binary), manifest.binarySha256);
     if (platform.startsWith('darwin-')) {
       assert.equal(binary.subarray(0, 4).toString('hex'), 'cffaedfe');
       assert.equal(binary.readUInt32LE(4), platform.endsWith('arm64') ? 0x0100000c : 0x01000007);
@@ -43,21 +54,21 @@ try {
       assert.equal(binary.readUInt16LE(pe + 4), 0x8664);
     }
     if (platform === `${process.platform}-${process.arch}`) {
-      const executable = join(home, member);
+      const executable = join(home, name + (platform.startsWith('win32-') ? '.exe' : ''));
       writeFileSync(executable, binary, {mode: 0o755});
       const env = {
         PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, HOME: home, USERPROFILE: home,
-        XDG_CONFIG_HOME: join(home, 'config'), LCA_BACKGROUND_DATA_BASE: 'http://127.0.0.1:9',
-        LCA_BACKGROUND_DATA_OAUTH_URL: 'http://127.0.0.1:9/api/cortex/oauth',
+        XDG_CONFIG_HOME: join(home, 'config'), QUERYING_LCA_DATASETS_BASE: 'http://127.0.0.1:9',
+        QUERYING_LCA_DATASETS_OAUTH_URL: 'http://127.0.0.1:9/api/cortex/oauth',
       };
-      const run = args => execFileSync(executable, args, {env, cwd: tmpdir(), encoding: 'utf8', timeout: 30_000});
+      const run = args => execFileSync(executable, args, {env, cwd: home, encoding: 'utf8', timeout: 30_000});
       assert.equal(run(['version']).trim(), pkg.version);
       assert(run(['--help']).includes(name));
       assert(run(['search-datasets', '--help']).includes('search-datasets'));
       assert.throws(() => run(['doctor']), error => error.status === 2 && String(error.stdout).includes(`${name} login`));
       executed = true;
     }
-    console.log(`Verified ${filename}: SHA256, archive member and ${platform} executable header.`);
+    console.log(`Verified ${filename}: SHA256, single-root manifest, binary digest and ${platform} architecture.`);
   }
   assert(executed, 'No native binary matched this build host');
   console.log(`Native version/help/missing-credential doctor passed on ${process.platform}-${process.arch}.`);
