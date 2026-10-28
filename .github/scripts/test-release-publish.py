@@ -6,7 +6,11 @@ mock='''#!/usr/bin/env python3
 import os,sys,json,pathlib
 root=pathlib.Path(os.environ['MOCK_DB']);s=json.loads((root/'state').read_text());a=sys.argv[1:]
 with (root/'calls').open('a') as f:f.write(json.dumps([pathlib.Path(sys.argv[0]).name,*a])+'\\n')
-if pathlib.Path(sys.argv[0]).name=='git':sys.exit(s.get('git_status',0))
+if pathlib.Path(sys.argv[0]).name=='git':
+ if s.get('git_status',0):sys.exit(s['git_status'])
+ if a==['rev-parse','HEAD']:print(os.environ['GITHUB_SHA'])
+ elif a==['status','--porcelain']:print(s.get('dirty',''))
+ sys.exit(0)
 if pathlib.Path(sys.argv[0]).name=='npm':
  if a[0]=='publish':sys.exit(s.get('publish_status',0))
  print(json.dumps(s.get('npm',{})));sys.exit(s.get('npm_status',0))
@@ -50,16 +54,16 @@ if (scripts/'npm-publish.mjs').exists():
  assert sum(c[1:2]==['publish'] for c in calls)==1
  for state in [{'npm':{**dist,'shasum':'wrong'}},{'npm':{**dist,'integrity':'wrong'}},{'npm_status':1,'npm':{'error':{'code':'E503'}}},{'npm_status':1,'npm':{'error':{'code':'E401'}}}]:
   no_write(run('npm-publish.mjs',state,[str(file)],False))
-# Renamed releases are binaries-only; removing npm must not remove version/main gates.
+# The active release is CDN-only: no tags, GitHub release/draft transfer or npm publication.
 workflow=scripts.parent/'workflows/release.yml';text=workflow.read_text()
-assert text.index('download binaries dist-bin') < text.index('node .github/scripts/release-publish.mjs dist-bin/*')
-assert 'npm-publish.mjs' not in text and 'npm pack --' not in text and 'id-token:' not in text
-assert text.index('node scripts/check-native.mjs') < text.index('upload binaries dist-bin')
+assert 'workflow_dispatch:' in text and 'contents: read' in text
+for forbidden in ['push:', 'tags:', 'contents: write', 'release-publish.mjs', 'release-handoff.mjs', 'npm-publish.mjs', 'npm pack --', 'id-token:']:
+ assert forbidden not in text,forbidden
+assert text.index('node scripts/check-native.mjs') < text.index('./scripts/publish-cdn.sh')
 assert 'node .github/scripts/verify-release.mjs' in text
-version=json.loads((scripts.parent.parent/'package.json').read_text())['version']
-for tag,sha,status,ok in [(f'v{version}','a'*40,0,True),('v0.0.0','a'*40,0,False),(f'v{version}','bad',0,False),(f'v{version}','a'*40,1,False)]:
- (root/'state').write_text(json.dumps({'git_status':status}));(root/'calls').write_text('')
- guard_env={**env,'GITHUB_REF_NAME':tag,'GITHUB_SHA':sha}
+for ref,sha,status,dirty,ok in [('main','a'*40,0,'',True),('v0.5.1','a'*40,0,'',False),('main','bad',0,'',False),('main','a'*40,1,'',False),('main','a'*40,0,' M src/cli.ts',False)]:
+ (root/'state').write_text(json.dumps({'git_status':status,'dirty':dirty}));(root/'calls').write_text('')
+ guard_env={**env,'GITHUB_REF_NAME':ref,'GITHUB_SHA':sha}
  r=subprocess.run(['node',str(scripts/'verify-release.mjs')],env=guard_env,cwd=root,capture_output=True,text=True)
  assert (r.returncode==0)==ok,r.stderr
  no_write([json.loads(line) for line in (root/'calls').read_text().splitlines()])

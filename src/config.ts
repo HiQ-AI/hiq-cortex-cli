@@ -1,9 +1,9 @@
 /**
  * Runtime config, read once at process start.
  *
- *   LCA_BACKGROUND_DATA_API_KEY        — API key (sk_…) for server-side / CI use. Wins over a
- *                        stored `lca-background-data login` credential.
- *   LCA_BACKGROUND_DATA_BASE    — override the API base (default https://x.hiqlcd.com).
+ *   QUERYING_LCA_DATASETS_API_KEY        — API key (sk_…) for server-side / CI use. Wins over a
+ *                        stored `querying-lca-datasets login` credential.
+ *   QUERYING_LCA_DATASETS_BASE    — override the API base (default https://x.hiqlcd.com).
  *
  * Credential precedence matches every other HiQ client: host/CI env first,
  * then whatever `login` stored. Nothing is ever written back to the env.
@@ -31,14 +31,14 @@ export interface Config {
   ssoToken: string;
 }
 
-const base = stripTrailingSlash(process.env.LCA_BACKGROUND_DATA_BASE?.trim() || DEFAULT_BASE);
+const base = stripTrailingSlash(process.env.QUERYING_LCA_DATASETS_BASE?.trim() || DEFAULT_BASE);
 
 export const config: Config = {
   base,
   mcpUrl: `${base}/api/cortex/mcp`,
   searchUrl: `${base}/api/cortex/search`,
   oauthUrl: `${base}/api/cortex/oauth`,
-  apiKey: process.env.LCA_BACKGROUND_DATA_API_KEY?.trim() || "",
+  apiKey: process.env.QUERYING_LCA_DATASETS_API_KEY?.trim() || "",
   ssoToken: readStoredToken(),
 };
 

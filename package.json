@@ -1,10 +1,10 @@
 {
-  "name": "@hiq-ai/lca-background-data",
-  "version": "0.5.0",
-  "description": "Search LCA background databases and match inventory requirements to traceable process datasets.",
+  "name": "querying-lca-datasets",
+  "version": "0.5.1",
+  "description": "Query LCA process datasets and match inventory requirements with traceable source coordinates and evidence.",
   "type": "module",
   "bin": {
-    "lca-background-data": "./dist/cli.js"
+    "querying-lca-datasets": "./dist/cli.js"
   },
   "engines": {
     "node": ">=20"

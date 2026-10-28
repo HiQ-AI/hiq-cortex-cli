@@ -2,11 +2,11 @@
 import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
 const binaries = {
-  "lca-background-data-darwin-arm64.tar.gz": "darwin-arm64",
-  "lca-background-data-darwin-x64.tar.gz": "darwin-x64",
-  "lca-background-data-linux-x64.tar.gz": "linux-x64",
-  "lca-background-data-linux-arm64.tar.gz": "linux-arm64",
-  "lca-background-data-windows-x64.zip": "windows-x64",
+  "querying-lca-datasets-darwin-arm64.tar.gz": "darwin-arm64",
+  "querying-lca-datasets-darwin-x64.tar.gz": "darwin-x64",
+  "querying-lca-datasets-linux-x64.tar.gz": "linux-x64",
+  "querying-lca-datasets-linux-arm64.tar.gz": "linux-arm64",
+  "querying-lca-datasets-win32-x64.tar.gz": "win32-x64",
   "checksums.txt": "portable"
 };
 export function expectedFiles(kind) {
