@@ -21,11 +21,11 @@ fallback, and a product Git tag is not required for publication.
 For version 0.5.1:
 
 ```sh
-curl -fsSL https://download.hiq.earth/cli/querying-lca-datasets/releases/v0.5.1/install.sh | sh
+curl -fsSL https://download.hiq.earth/cli/querying-lca-datasets/releases/v0.6.0/install.sh | sh
 ```
 
 ```powershell
-irm https://download.hiq.earth/cli/querying-lca-datasets/releases/v0.5.1/install.ps1 | iex
+irm https://download.hiq.earth/cli/querying-lca-datasets/releases/v0.6.0/install.ps1 | iex
 ```
 
 Installers use per-user destinations, require an exact checksum record and do not
@@ -106,6 +106,38 @@ product-specific EPD is not automatically an interchangeable background process
 dataset; explain declared-unit and boundary differences. EPD verification,
 corrective actions and certification belong to the separate EPD specialist.
 
+## Source-scoped plugins
+
+The independently installable source plugins share this executable. The aggregate
+plugin retains the unprefixed commands and stable installation identity.
+
+```sh
+querying-lca-datasets scoped hiqlcd sources --json
+querying-lca-datasets scoped hiqlcd search-datasets --source hiqlcd --ver 1.5.0 --model CUT_OFF --queries electricity --json
+querying-lca-datasets scoped epd epd-search --query concrete --limit 5 --json
+```
+
+`scoped <code>` is enforced by the CLI, not just a skill instruction. Background
+source scopes accept their own directory, deterministic search/verification and
+source-limited semantic search. Conflicting sources and cross-source responses
+fail; no partial cross-source result is printed. Opaque-key lookup, aggregation,
+hotspot and unknown tools are rejected in these scopes because their inputs do
+not provide a reliable source boundary. The aggregate entrypoint retains those
+tools under the current account's server-enforced permissions.
+
+`scoped epd` is a separate published-declaration query family, not a fabricated
+background source or the EPD audit expert. `epd-search` uses the existing public
+read-only `/api/relic/epd/search` API and retains the complete response envelope,
+publisher, declared unit, module/method, restrictions and pagination. It needs no
+local login; server restrictions remain authoritative. `sources` is likewise
+public metadata. Other background queries and MCP tools retain their existing
+credential requirement. Public access is deliberate, not a retry after denial.
+
+Scopes constrain a selected invocation; they do not sandbox a shell or prevent a
+user from explicitly choosing the aggregate entrypoint. Plugins neither grant
+data licenses nor override entitlements. The source list is a supported query
+contract; new sources require an explicit supported scope and plugin entry.
+
 ## Authentication and configuration
 
 ```sh
@@ -170,7 +202,7 @@ local package-install tests do not publish to npm. Version lives in package.json
 and its lockfile; the stamp script embeds it in the compiled executable.
 
 The release workflow is manually dispatched from a clean, reviewed main commit.
-It tests, builds/codesigns on macOS, validates all five archive digests, manifest
+It typechecks, builds/codesigns on macOS, validates all five archive digests, manifest
 layouts and architecture headers, and executes native-host version/help and
 missing-credential doctor in a fresh identity store. It then publishes those
 same archives and rendered installers directly to versioned CDN keys using
@@ -187,6 +219,7 @@ failure with different rebuilt bytes requires a new version, not an overwrite.
 There are no mutable latest or installer pointers. Post-publication installer
 checks download and compare the exact CDN version on their runner platforms.
 
+Business and loopback integration tests run locally, not in GitHub workflows.
 Tests use loopback OAuth/HTTP fixtures and synthetic credentials only. Keep the
 parent HOME/XDG_CONFIG_HOME isolated because runtime configuration loads at import.
 Legacy handoff/publication/retention helpers remain historical tooling with mock

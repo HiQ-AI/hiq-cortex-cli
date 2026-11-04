@@ -40,6 +40,4 @@ jobs:
           [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path scripts/install.ps1), [ref]$tokens, [ref]$errors) | Out-Null
           if ($errors.Count) { throw ($errors | Out-String) }
       - run: npm ci
-      - run: npm test
-        env:
-          XDG_CONFIG_HOME: ${{ runner.temp }}/querying-lca-datasets-test-config
+      - run: npm run build

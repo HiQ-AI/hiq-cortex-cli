@@ -23,21 +23,22 @@ export function requireCredential(extra = ""): void {
 }
 
 /**
- * POST `/api/relic/<path>` and return the unwrapped `data`. `isShape` guards the
- * envelope so a proxy HTML page or a changed contract fails loudly, not as NaN.
+ * Request `/api/relic/<path>` and retain its envelope. `isShape` guards the
+ * response so a proxy HTML page or a changed contract fails loudly.
  */
-export async function relicPost<T>(
+export async function relicRequest<T>(
   path: string,
   label: string,
   body: unknown,
   isShape: (d: unknown) => d is T,
+  method = "POST",
 ): Promise<T> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   let resp: Response;
   try {
     resp = await fetch(`${config.base}/api/relic/${path}`, {
-      method: "POST",
+      method,
       headers: { ...authHeaders(), "Content-Type": "application/json", "User-Agent": `querying-lca-datasets/${VERSION}` },
       body: JSON.stringify(body),
       signal: ctl.signal,
@@ -68,16 +69,27 @@ export async function relicPost<T>(
     }
     throw new CortexClientError("upstream", `${label} failed: HTTP ${resp.status} ${raw.slice(0, 300)}`, code);
   }
-  let parsed: { data?: unknown };
+  let parsed: unknown;
   try {
-    parsed = JSON.parse(raw) as { data?: unknown };
+    parsed = JSON.parse(raw);
   } catch {
     throw new CortexClientError("upstream", `cannot parse relic response: ${raw.slice(0, 200)}`);
   }
-  if (!isShape(parsed.data)) {
+  if (!isShape(parsed)) {
     throw new CortexClientError("upstream", `unexpected relic response shape: ${raw.slice(0, 200)}`);
   }
-  return parsed.data;
+  return parsed;
+}
+
+export async function relicPost<T>(
+  path: string,
+  label: string,
+  body: unknown,
+  isShape: (d: unknown) => d is T,
+): Promise<T> {
+  const envelope = await relicRequest<{ data: T }>(path, label, body,
+    (value): value is { data: T } => isShape((value as { data?: unknown })?.data));
+  return envelope.data;
 }
 
 /** Parse a `@file` JSON-array argument or return null when the arg is inline. */
