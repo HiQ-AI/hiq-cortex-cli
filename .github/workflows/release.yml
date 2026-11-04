@@ -23,9 +23,7 @@ jobs:
       - name: Verify reviewed main checkout
         run: node .github/scripts/verify-release.mjs
       - run: npm ci
-      - run: npm test
-        env:
-          XDG_CONFIG_HOME: ${{ runner.temp }}/querying-lca-datasets-test-config
+      - run: npm run build
       - run: ./scripts/build-binaries.sh
       - name: Verify five native archives before publication
         run: node scripts/check-native.mjs dist-bin

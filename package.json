@@ -1,6 +1,6 @@
 {
   "name": "querying-lca-datasets",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Query LCA process datasets and match inventory requirements with traceable source coordinates and evidence.",
   "type": "module",
   "bin": {

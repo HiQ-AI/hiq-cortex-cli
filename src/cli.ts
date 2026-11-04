@@ -25,8 +25,10 @@ import { formatVerifyFlows, parseFlowsArg, runVerifyFlows } from "./verifyFlows.
 import { formatSearchFlows, parseQueriesArg, runSearchFlows } from "./searchFlows.js";
 import { CortexClientError, EXIT, exitCodeFor } from "./types.js";
 import { VERSION } from "./version.js";
+import { scopedInvocation, type SourceScope } from "./sourceScope.js";
+import { runSources, runEpdSearch } from "./publicCatalog.js";
 
-const STATIC = new Set(["search", "search-datasets", "search-flows", "verify-datasets", "verify-flows", "list", "describe", "call", "doctor", "login", "logout", "version"]);
+const STATIC = new Set(["sources", "epd-search", "search", "search-datasets", "search-flows", "verify-datasets", "verify-flows", "list", "describe", "call", "doctor", "login", "logout", "version"]);
 
 function emit(json: boolean, tool: string, text: string): void {
   if (json) {
@@ -51,9 +53,9 @@ function fail(json: boolean, err: unknown): never {
   process.exit(exitCodeFor(e));
 }
 
-async function catalog(): Promise<CatalogTool[]> {
+async function catalog(scope?: SourceScope): Promise<CatalogTool[]> {
   const tools = await listTools();
-  return tools.map((t) => ({
+  return tools.filter(t => !scope || scope.supportsTool(t.name)).map((t) => ({
     name: t.name,
     description: t.description,
     inputSchema: t.inputSchema,
@@ -69,8 +71,19 @@ async function main(): Promise<void> {
   // CLI always starts as `<runtime> cli.js …`, so argv[2:] is right for plain
   // node, Electron-as-node, and the bun-compiled binary alike. (Bit us for
   // real in @hiq-ai/hiq-editor 0.9.3.)
-  const argvRaw = process.argv.slice(2);
+  const { argv: argvRaw, scope } = scopedInvocation(process.argv.slice(2));
   const json = argvRaw.includes("--json");
+  const source = (value: unknown): string => scope ? scope.source(String(value)) : String(value);
+  const invoke = async (name: string, args: Record<string, unknown>): Promise<string> => {
+    scope?.tool(name);
+    const text = await callTool(name, args);
+    let result: unknown;
+    try { result = JSON.parse(text); } catch { return text; }
+    if ((result as { status?: string })?.status === "error") {
+      throw new CortexClientError("upstream", text);
+    }
+    return text;
+  };
 
   // Tool subcommands need the server catalog. Only fetch it when the first
   // non-flag arg isn't one of the static commands — keeps `login` usable with
@@ -79,15 +92,16 @@ async function main(): Promise<void> {
   let tools: CatalogTool[] = [];
   if (first && !STATIC.has(first) && !argvRaw.includes("--help") && !argvRaw.includes("-h") && hasCredential()) {
     try {
-      tools = await catalog();
-    } catch {
+      tools = await catalog(scope);
+    } catch (error) {
+      if (scope) throw error;
       /* fall through: yargs will report the unknown command */
     }
   }
 
   const cli = yargs(argvRaw)
     .scriptName("querying-lca-datasets")
-    .usage("$0 <command> [options]")
+    .usage("$0 [scoped <source-code|epd>] <command> [options]")
     .option("json", { type: "boolean", default: false, describe: "机器可读输出" })
     .command(
       "search <query>",
@@ -98,7 +112,8 @@ async function main(): Promise<void> {
           .option("sources", { type: "string", describe: "限定数据库,逗号分隔(如 BAFU,Ecoinvent)" }),
       async (a) => {
         try {
-          const r = await runSearch(String(a.query), a.sources as string | undefined);
+          const r = await runSearch(String(a.query), scope ? scope.sources(a.sources as string | undefined) : a.sources as string | undefined);
+          scope?.result(r, true);
           if (a.json) process.stdout.write(JSON.stringify({ ok: true, tool: "search", data: r }) + "\n");
           else process.stdout.write(formatSearch(r) + "\n");
         } catch (e) {
@@ -120,13 +135,14 @@ async function main(): Promise<void> {
       async (a) => {
         try {
           const r = await runSearchDatasets(
-            String(a.source),
+            source(a.source),
             String(a.ver),
             String(a.model),
             String(a.locale),
             parseDatasetQueriesArg(String(a.queries)),
             Number(a.limit),
           );
+          scope?.result(r);
           if (a.json) process.stdout.write(JSON.stringify({ ok: true, tool: "search-datasets", data: r }) + "\n");
           else process.stdout.write(formatSearchDatasets(r) + "\n");
         } catch (e) {
@@ -149,7 +165,8 @@ async function main(): Promise<void> {
           }),
       async (a) => {
         try {
-          const r = await runVerifyFlows(String(a.source), String(a.ver), parseFlowsArg(String(a.flows)));
+          const r = await runVerifyFlows(source(a.source), String(a.ver), parseFlowsArg(String(a.flows)));
+          scope?.result(r);
           if (a.json) process.stdout.write(JSON.stringify({ ok: true, tool: "verify-flows", data: r }) + "\n");
           else process.stdout.write(formatVerifyFlows(r) + "\n");
           // 有缺 / 单位不符 → 退出码 2,让脚本不用解析就能判「没全对」
@@ -173,7 +190,8 @@ async function main(): Promise<void> {
           }),
       async (a) => {
         try {
-          const r = await runVerifyDatasets(String(a.source), String(a.ver), parseDatasetsArg(String(a.datasets)));
+          const r = await runVerifyDatasets(source(a.source), String(a.ver), parseDatasetsArg(String(a.datasets)));
+          scope?.result(r);
           if (a.json) process.stdout.write(JSON.stringify({ ok: true, tool: "verify-datasets", data: r }) + "\n");
           else process.stdout.write(formatVerifyDatasets(r) + "\n");
           if (r.missing > 0 || r.unitMismatch > 0 || r.unpublished > 0) process.exit(2);
@@ -193,7 +211,8 @@ async function main(): Promise<void> {
           .option("limit", { type: "number", default: 5, describe: "每个 query 回几条(1..50)" }),
       async (a) => {
         try {
-          const r = await runSearchFlows(String(a.source), String(a.ver), parseQueriesArg(String(a.queries)), Number(a.limit));
+          const r = await runSearchFlows(source(a.source), String(a.ver), parseQueriesArg(String(a.queries)), Number(a.limit));
+          scope?.result(r);
           if (a.json) process.stdout.write(JSON.stringify({ ok: true, tool: "search-flows", data: r }) + "\n");
           else process.stdout.write(formatSearchFlows(r) + "\n");
         } catch (e) {
@@ -201,9 +220,25 @@ async function main(): Promise<void> {
         }
       },
     )
+    .command("sources", "Published background source versions and models (public metadata)", {}, async (a) => {
+      try {
+        const data = await runSources(scope);
+        process.stdout.write(JSON.stringify(a.json ? { ok: true, tool: "sources", ...data } : data, null, a.json ? 0 : 2) + "\n");
+      } catch (error) { fail(Boolean(a.json), error); }
+    })
+    .command("epd-search", "Search published EPD declarations (public read-only API)", y => y
+      .option("query", { type: "string", demandOption: true })
+      .option("publishers", { type: "string", describe: "EPD publishers, comma-separated; e.g. eco,epditaly,epdnorge" })
+      .option("limit", { type: "number", default: 20 })
+      .option("cursor", { type: "string", describe: "Opaque cursor from the preceding response" }), async a => {
+      try {
+        const data = await runEpdSearch(String(a.query), a.publishers, Number(a.limit), a.cursor);
+        process.stdout.write(JSON.stringify(a.json ? { ok: true, tool: "epd-search", ...data } : data, null, a.json ? 0 : 2) + "\n");
+      } catch (error) { fail(Boolean(a.json), error); }
+    })
     .command("list", "列出全部子命令(--json 出 schema)", {}, async (a) => {
       try {
-        const t = await catalog();
+        const t = await catalog(scope);
         if (a.json) {
           process.stdout.write(JSON.stringify({ ok: true, tools: t }) + "\n");
         } else {
@@ -217,7 +252,7 @@ async function main(): Promise<void> {
     })
     .command("describe <tool>", "看某个子命令的参数说明", (y) => y.positional("tool", { type: "string" }), async (a) => {
       try {
-        const t = await catalog();
+        const t = await catalog(scope);
         const hit = t.find((x) => toolAlias(x.name) === a.tool || x.name === a.tool);
         if (!hit) throw new CortexClientError("validation", `未知子命令: ${a.tool}(用 list 看全部)`);
         process.stdout.write(JSON.stringify(hit, null, 2) + "\n");
@@ -235,7 +270,7 @@ async function main(): Promise<void> {
       async (a) => {
         try {
           const parsed = JSON.parse(String(a.args)) as Record<string, unknown>;
-          emit(Boolean(a.json), String(a.tool), await callTool(String(a.tool), parsed));
+          emit(Boolean(a.json), String(a.tool), await invoke(String(a.tool), parsed));
         } catch (e) {
           fail(Boolean(a.json), e);
         }
@@ -250,7 +285,7 @@ async function main(): Promise<void> {
         process.exit(EXIT.config);
       }
       try {
-        const t = await catalog();
+        const t = await catalog(scope);
         lines.push(`连通:   正常,服务端发布了 ${t.length} 个工具`);
         process.stdout.write(lines.join("\n") + "\n");
       } catch (e) {
@@ -274,7 +309,7 @@ async function main(): Promise<void> {
   const withTools = registerToolCommands(
     cli,
     tools,
-    async (toolName, args) => emit(json, toolName, await callTool(toolName, args)),
+    async (toolName, args) => emit(json, toolName, await invoke(toolName, args)),
     (err) => fail(json, err),
   );
 
