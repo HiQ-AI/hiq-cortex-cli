@@ -1,5 +1,14 @@
 # Querying LCA Datasets
 
+> **Retired (2026-11-11).** This CLI is no longer developed. It is replaced by the
+> **Environmental Data** and **EPD Data** CLIs: <https://github.com/HiQ-AI/environmental-data>.
+> Its queries go through the Cortex MCP endpoint, which shuts down on **2026-11-25**;
+> after that date this client stops returning results. Published release objects
+> stay unchanged. Tracking: HiQ-AI/cortex#2893.
+>
+> **已下线。** 请改用 Environmental Data / EPD Data CLI（上方链接）；本客户端依赖的
+> MCP 端点将于 2026-11-25 关闭，之后无法再查询。
+
 `querying-lca-datasets` finds and compares LCA **process datasets** and matches
 materials, energy, transport, treatment and other inventory requirements to them.
 Inputs can be one description, an individual inventory exchange, or a supported
